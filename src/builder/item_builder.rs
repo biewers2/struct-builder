@@ -1,4 +1,4 @@
-use crate::build_struct::{struct_builder_from_fields, BuildStruct};
+use crate::builder::build_struct::{struct_builder_from_fields, BuildStruct};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Ident, ItemStruct};

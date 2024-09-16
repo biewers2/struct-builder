@@ -1,6 +1,6 @@
-use crate::named_struct_builder::NamedStructBuilder;
-use crate::unit_struct_builder::UnitStructBuilder;
-use crate::unnamed_struct_builder::UnnamedStructBuilder;
+use crate::builder::named_struct_builder::NamedStructBuilder;
+use crate::builder::unit_struct_builder::UnitStructBuilder;
+use crate::builder::unnamed_struct_builder::UnnamedStructBuilder;
 use proc_macro2::Ident;
 use syn::{Expr, ExprStruct, Fields, ImplItemFn, ItemStruct};
 

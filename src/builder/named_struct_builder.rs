@@ -1,4 +1,4 @@
-use crate::build_struct::{BuildStruct, BuildStructStats};
+use crate::builder::build_struct::{BuildStruct, BuildStructStats};
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
@@ -114,5 +114,90 @@ impl From<&[NamedFieldBuilder]> for BuildStructStats {
             }
         }
         stats
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::{format_ident, ToTokens};
+    use syn::{parse_quote, FieldsNamed};
+    use crate::builder::named_struct_builder::{NamedFieldBuilder, NamedStructBuilder};
+
+    fn get_fields_named() -> FieldsNamed {
+        parse_quote! {
+            {
+                pub public_field: String,
+                private_field: String,
+                optional: Option<usize>,
+                pub test: std::option::Option<String>,
+                test2: option::Option<T>,
+                pub dynamic: Box<dyn Send>,
+                pub dynamic2: Box<Option<dyn Send>>
+            }
+        }
+    }
+
+    #[test]
+    fn test_named_struct_builder_from_fields() {
+        let fields_named = get_fields_named();
+        let expected_values = vec![
+            NamedFieldBuilder {
+                ident: format_ident!("public_field"),
+                field: parse_quote!(pub public_field: String),
+                required: true,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("private_field"),
+                field: parse_quote!(private_field: String),
+                required: true,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("optional"),
+                field: parse_quote!(optional: Option<usize>),
+                required: false,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("test"),
+                field: parse_quote!(pub test: std::option::Option<String>),
+                required: false,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("test2"),
+                field: parse_quote!(test2: option::Option<T>),
+                required: false,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("dynamic"),
+                field: parse_quote!(pub dynamic: Box<dyn Send>),
+                required: true,
+            },
+            NamedFieldBuilder {
+                ident: format_ident!("dynamic2"),
+                field: parse_quote!(pub dynamic2: Box<Option<dyn Send>>),
+                required: true,
+            }
+        ];
+
+        let builder = NamedStructBuilder::from(fields_named);
+
+        assert_eq!(builder.field_builders.len(), 7);
+        for i in 0..expected_values.len() {
+            let fbuilder = &builder.field_builders[i];
+            let expected = &expected_values[i];
+
+            assert_eq!(fbuilder.field.to_token_stream().to_string(), expected.field.to_token_stream().to_string());
+            assert_eq!(fbuilder.ident, expected.ident);
+            assert_eq!(fbuilder.required, expected.required);
+        }
+    }
+
+    #[test]
+    fn test_build_struct_stats_from_field_builders() {
+        let fields_named = get_fields_named();
+
+        let builder = NamedStructBuilder::from(fields_named);
+
+        assert_eq!(builder.stats.required_count, 4);
+        assert_eq!(builder.stats.optional_count, 3);
     }
 }

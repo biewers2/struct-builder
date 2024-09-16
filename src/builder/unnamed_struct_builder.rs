@@ -1,4 +1,4 @@
-use crate::build_struct::{BuildStruct, BuildStructStats};
+use crate::builder::build_struct::{BuildStruct, BuildStructStats};
 use proc_macro2::Ident;
 use syn::{Expr, ExprStruct, Field, FieldsUnnamed, ImplItemFn, Index, ItemStruct, Type};
 
