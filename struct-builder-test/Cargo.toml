@@ -1,7 +1,0 @@
-[package]
-name = "struct-builder-test"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-struct-builder = { path = "../struct-builder" }
