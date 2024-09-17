@@ -1,6 +1,6 @@
 use crate::builder::{struct_builder_from_fields, BuildStruct};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{parse_quote, Ident, ItemStruct};
 
 pub struct ItemBuilder {
@@ -28,7 +28,7 @@ impl ItemBuilder {
     }
 
     pub fn new_item_impl(&self) -> TokenStream {
-        let ItemBuilder {
+        let Self {
             item_ident,
             item_ty,
             params_ident,
@@ -41,9 +41,17 @@ impl ItemBuilder {
             item_ty.clone(),
             parse_quote! { #params_ident }
         );
-        
+
+        let doc = format!(r#"
+            Create a new builder.
+
+            # Arguments
+
+            `{params_ident}` - The fields required by {item_ty}
+        "#);
         quote! {
             impl #item_ty {
+                #[doc=#doc]
                 pub fn builder(#params_ident: #params_ty) -> #builder_ty {
                     #builder_ty {
                         #item_ident: #initialized_struct
@@ -54,18 +62,36 @@ impl ItemBuilder {
     }
 
     pub fn new_params_struct(&self) -> TokenStream {
-        self.struct_builder.params_struct(self.params_ty.clone()).into_token_stream()
+        let Self {
+            item_ty,
+            params_ty,
+            ..
+        } = &self;
+
+        let params_struct = self.struct_builder.params_struct(params_ty.clone());
+
+        let doc = format!(r#"
+            Represents the fields required by {item_ty} to be constructed.
+        "#);
+        quote! {
+            #[doc=#doc]
+            #params_struct
+        }
     }
 
     pub fn new_builder_struct(&self) -> TokenStream {
-        let ItemBuilder {
+        let Self {
             item_ident,
             item_ty,
             builder_ty,
             ..
         } = &self;
 
+        let doc = format!(r#"
+            Represents a builder for the {item_ty} struct.
+        "#);
         quote! {
+            #[doc=#doc]
             pub struct #builder_ty {
                 #item_ident: #item_ty
             }
@@ -73,7 +99,7 @@ impl ItemBuilder {
     }
 
     pub fn new_builder_impl(&self) -> TokenStream {
-        let ItemBuilder {
+        let Self {
             item_ident,
             item_ty,
             builder_ty,
@@ -81,11 +107,15 @@ impl ItemBuilder {
         } = &self;
         
         let functions = self.struct_builder.builder_functions(item_ident.clone());
-        
+
+        let doc = format!(r#"
+            Consume this builder and build {item_ty}
+        "#);
         quote! {
             impl #builder_ty {
                 #(#functions)*
-                
+
+                #[doc=#doc]
                 pub fn build(self) -> #item_ty {
                     self.#item_ident
                 }
@@ -94,7 +124,7 @@ impl ItemBuilder {
     }
     
     pub fn new_conversion_impl_from_params(&self) -> TokenStream {
-        let ItemBuilder {
+        let Self {
             item_ty,
             params_ident,
             params_ty,
@@ -126,7 +156,7 @@ impl ItemBuilder {
     }
 
     pub fn new_builder_from_item(&self) -> TokenStream {
-        let ItemBuilder {
+        let Self {
             item_ident,
             item_ty,
             builder_ty,
@@ -145,8 +175,7 @@ impl ItemBuilder {
     }
 
     pub fn new_item_from_builder(&self) -> TokenStream {
-        let ItemBuilder {
-            item_ident,
+        let Self {
             item_ty,
             builder_ty,
             ..
@@ -155,7 +184,7 @@ impl ItemBuilder {
         quote! {
             impl From<#builder_ty> for #item_ty {
                 fn from(value: #builder_ty) -> Self {
-                    value.#item_ident
+                    value.build()
                 }
             }
         }
@@ -241,7 +270,7 @@ mod tests {
         let expected = quote! {
             impl From<AccountBuilder> for Account {
                 fn from(value: AccountBuilder) -> Self {
-                    value.inner
+                    value.build()
                 }
             }
         };
