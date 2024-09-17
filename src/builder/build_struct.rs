@@ -2,12 +2,12 @@ use crate::builder::named_struct_builder::NamedStructBuilder;
 use crate::builder::unit_struct_builder::UnitStructBuilder;
 use crate::builder::unnamed_struct_builder::UnnamedStructBuilder;
 use proc_macro2::Ident;
-use syn::{Expr, ExprStruct, Fields, ImplItemFn, ItemStruct};
+use syn::{Expr, Fields, ImplItemFn, ItemStruct};
 
 pub trait BuildStruct {
     fn stats(&self) -> &BuildStructStats;
 
-    fn initialized_struct(&self, ident: Ident, required_field_source: Expr) -> ExprStruct;
+    fn initialized_struct(&self, ident: Ident, field_source: Expr) -> Expr;
 
     fn params_struct(&self, ident: Ident) -> ItemStruct;
 

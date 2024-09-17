@@ -12,7 +12,7 @@ impl BuildStruct for UnitStructBuilder {
         &self.stats
     }
     
-    fn initialized_struct(&self, ident: Ident, _required_field_source: Expr) -> ExprStruct {
+    fn initialized_struct(&self, ident: Ident, _required_field_source: Expr) -> Expr {
         parse_quote! {
             #ident
         }
