@@ -9,5 +9,17 @@ pub struct Platypus {
 
 #[test]
 fn test_named_struct_builder() {
+    let params = PlatypusParams {
+        age: 3,
+        color: (36, 167, 161)
+    };
+
+    let platypus = Platypus::builder(params)
+        .with_name(Some(String::from("Perry")))
+        .with_age(4)
+        .build();
     
+    assert_eq!(platypus.age, 4);
+    assert_eq!(platypus.color, (36, 167, 161));
+    assert_eq!(platypus.name, Some(String::from("Perry")));
 }

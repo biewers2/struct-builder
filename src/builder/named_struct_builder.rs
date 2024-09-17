@@ -86,14 +86,16 @@ impl From<FieldsNamed> for NamedStructBuilder {
     fn from(value: FieldsNamed) -> Self {
         let mut field_builders = Vec::<NamedFieldBuilder>::new();
         for field in value.named.into_iter() {
-            if let Type::Path(path_type) = &field.ty {
-                let ident = field.ident.clone().expect("named field is missing identifier");
-                let required = path_type.path.segments.last()
+            let ident = field.ident.clone().expect("named field is missing identifier");
+            let required = if let Type::Path(path_type) = &field.ty {
+                path_type.path.segments.last()
                     .map(|seg| seg.ident != "Option")
-                    .unwrap_or(true);
-
-                field_builders.push(NamedFieldBuilder { ident, field, required });
-            }
+                    .unwrap_or(true)
+            } else {
+                true
+            };
+            
+            field_builders.push(NamedFieldBuilder { ident, field, required });
         }
 
         Self {
@@ -226,7 +228,7 @@ mod tests {
             expected.to_token_stream().to_string()
         );
     }
-    
+
     #[test]
     fn test_params_struct() {
         let builder = NamedStructBuilder::from(get_fields_named());
@@ -298,7 +300,7 @@ mod tests {
                 }
             }
         ];
-        
+
         for (function, expected) in builder_functions.iter().zip(expected) {
             assert_eq!(
                 function.to_token_stream().to_string(),
