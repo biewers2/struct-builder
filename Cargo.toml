@@ -2,6 +2,13 @@
 name = "struct-builder"
 version = "0.1.0"
 edition = "2021"
+authors = ["biewers2"]
+description = "Derive builder structs for your structs"
+repository = "https://github.com/biewers2/struct-builder"
+license = "MIT"
+license-file = "LICENSE.md"
+keywords = ["struct", "builder", "pattern", "derive", "required"]
+categories = ["rust-patterns", "development-tools"]
 
 [lib]
 proc-macro = true
