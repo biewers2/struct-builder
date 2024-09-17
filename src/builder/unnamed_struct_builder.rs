@@ -1,8 +1,9 @@
-use crate::builder::build_struct::{BuildStruct, BuildStructStats};
+use crate::builder::{BuildStruct, BuildStructStats};
+use crate::builder::required::is_required;
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use syn::punctuated::Punctuated;
-use syn::{parse_quote, Expr, Field, FieldsUnnamed, ImplItemFn, Index, ItemStruct, Token, Type, Visibility};
+use syn::{parse_quote, Expr, Field, FieldsUnnamed, ImplItemFn, Index, ItemStruct, Token, Visibility};
 
 pub struct UnnamedStructBuilder {
     stats: BuildStructStats,
@@ -80,14 +81,9 @@ impl From<FieldsUnnamed> for UnnamedStructBuilder {
     fn from(value: FieldsUnnamed) -> Self {
         let mut field_builders = Vec::<UnnamedFieldBuilder>::new();
         for (index, field) in value.unnamed.into_iter().enumerate() {
-            if let Type::Path(path_type) = &field.ty {
-                let index = Index::from(index);
-                let required = path_type.path.segments.last()
-                    .map(|seg| seg.ident != "Option")
-                    .unwrap_or(true);
-
-                field_builders.push(UnnamedFieldBuilder { index, field, required })
-            }
+            let index = Index::from(index);
+            let required = is_required(&field);
+            field_builders.push(UnnamedFieldBuilder { index, field, required })
         }
 
         Self { 

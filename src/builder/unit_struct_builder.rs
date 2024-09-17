@@ -1,6 +1,6 @@
-use crate::builder::build_struct::{BuildStruct, BuildStructStats};
+use crate::builder::{BuildStruct, BuildStructStats};
 use proc_macro2::Ident;
-use syn::{parse_quote, Expr, ExprStruct, ImplItemFn, ItemStruct};
+use syn::{parse_quote, Expr, ImplItemFn, ItemStruct};
 
 #[derive(Default)]
 pub struct UnitStructBuilder {

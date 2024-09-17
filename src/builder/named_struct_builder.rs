@@ -1,8 +1,9 @@
-use crate::builder::build_struct::{BuildStruct, BuildStructStats};
+use crate::builder::{BuildStruct, BuildStructStats};
+use crate::builder::required::is_required;
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::punctuated::Punctuated;
-use syn::{parse_quote, Expr, Field, FieldValue, FieldsNamed, ImplItemFn, ItemStruct, Token, Type, Visibility};
+use syn::{parse_quote, Expr, Field, FieldValue, FieldsNamed, ImplItemFn, ItemStruct, Token};
 
 pub struct NamedStructBuilder {
     stats: BuildStructStats,
@@ -49,9 +50,7 @@ impl BuildStruct for NamedStructBuilder {
 
         for field_builder in &self.field_builders {
             if field_builder.required {
-                let mut field = field_builder.field.clone();
-                field.vis = Visibility::Public(Default::default());
-                punctuated_fields.push(field);
+                punctuated_fields.push(field_builder.field.clone());
             }
         }
 
@@ -87,13 +86,7 @@ impl From<FieldsNamed> for NamedStructBuilder {
         let mut field_builders = Vec::<NamedFieldBuilder>::new();
         for field in value.named.into_iter() {
             let ident = field.ident.clone().expect("named field is missing identifier");
-            let required = if let Type::Path(path_type) = &field.ty {
-                path_type.path.segments.last()
-                    .map(|seg| seg.ident != "Option")
-                    .unwrap_or(true)
-            } else {
-                true
-            };
+            let required = is_required(&field);
             
             field_builders.push(NamedFieldBuilder { ident, field, required });
         }
@@ -238,7 +231,7 @@ mod tests {
         let expected: ItemStruct = parse_quote! {
             pub struct MyStructParams {
                 pub public_field: String,
-                pub private_field: String,
+                private_field: String,
                 pub dynamic: Box<dyn Send>,
                 pub dynamic2: Box<Option<dyn Send>>
             }
