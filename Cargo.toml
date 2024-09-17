@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["biewers2"]
 description = "Derive builder structs for your structs"
+readme = "README.md"
 repository = "https://github.com/biewers2/struct-builder"
 license = "MIT"
 license-file = "LICENSE.md"
