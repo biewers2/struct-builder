@@ -197,14 +197,61 @@ mod tests {
     use quote::quote;
     use syn::{parse_quote, ItemStruct};
 
+    fn get_item_struct() -> ItemStruct {
+        parse_quote! {
+            pub struct MyStruct {
+                pub public_field: String,
+                private_field: String,
+                optional: Option<usize>,
+                pub test: std::option::Option<String>,
+                test2: option::Option<T>,
+                pub dynamic: Box<dyn Send>,
+                pub dynamic2: Box<Option<dyn Send>>,
+                pub tuple: (u8, u16, String)
+            }
+        }
+    }
+
     #[test]
     fn test_item_builder_from_item_struct() {
+        let item_struct = get_item_struct();
 
+        let builder = ItemBuilder::from(item_struct);
+
+        assert_eq!(builder.item_ident.to_string(), "inner");
+        assert_eq!(builder.item_ty.to_string(), "MyStruct");
+        assert_eq!(builder.params_ident.to_string(), "params");
+        assert_eq!(builder.params_ty.to_string(), "MyStructParams");
+        assert_eq!(builder.builder_ty.to_string(), "MyStructBuilder");
     }
 
     #[test]
     fn test_new_item_impl() {
+        let item_struct = get_item_struct();
+        let builder = ItemBuilder::from(item_struct);
 
+        let item_impl = builder.new_item_impl();
+        let expected = quote! {
+            impl MyStruct {
+                # [doc = "\n            Create a new builder.\n\n            # Arguments\n\n            `params` - The fields required by MyStruct\n        "]
+                pub fn builder(params: MyStructParams) -> MyStructBuilder {
+                    MyStructBuilder {
+                        inner: MyStruct {
+                            public_field: params.public_field,
+                            private_field: params.private_field,
+                            optional: ::std::option::Option::None,
+                            test: ::std::option::Option::None,
+                            test2: ::std::option::Option::None,
+                            dynamic: params.dynamic,
+                            dynamic2: params.dynamic2,
+                            tuple: params.tuple
+                        }
+                    }
+                }
+            }
+        };
+
+        assert_eq!(item_impl.to_string(), expected.to_string());
     }
 
     #[test]
