@@ -1,194 +1,214 @@
-use crate::builder::{struct_builder_from_fields, BuildStruct};
+use crate::builder::BuildStruct;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use syn::{parse_quote, Ident, ItemStruct};
+use quote::{format_ident, ToTokens};
+use syn::{Ident, ItemStruct};
 
 pub struct ItemBuilder {
-    item_ident: Ident,
-    item_ty: Ident,
-    params_ident: Ident,
-    params_ty: Ident,
-    builder_ty: Ident,
+    idents: ItemIdentifiers,
     struct_builder: Box<dyn BuildStruct>
+}
+
+pub struct ItemIdentifiers {
+    pub subject_ident: Ident,
+    pub params_ident: Ident,
+    pub builder_ident: Ident,
+}
+
+impl From<ItemBuilder> for TokenStream {
+    fn from(value: ItemBuilder) -> Self {
+        let ItemIdentifiers {
+            subject_ident,
+            params_ident,
+            builder_ident,
+        } = &value.idents;
+        
+        let struct_builder = value.struct_builder;
+        
+        TokenStream::from_iter(
+            vec![
+                struct_builder.subject_impl(subject_ident.clone()).to_token_stream(),
+                struct_builder.params_struct(params_ident.clone()).to_token_stream(),
+                struct_builder.params_impl(params_ident.clone()).to_token_stream(),
+                struct_builder.builder_struct(params_ident.clone()).to_token_stream(),
+                struct_builder.builder_impl(params_ident.clone()).to_token_stream()
+            ]
+        )
+    }
 }
 
 impl ItemBuilder {
     pub fn from(item: ItemStruct) -> Self {
-        let ident = item.ident;
-        let struct_builder = struct_builder_from_fields(item.fields);
-
-        Self {
-            item_ident: format_ident!("inner"),
-            item_ty: ident.clone(),
-            params_ty: format_ident!("{}Params", &ident),
-            params_ident: format_ident!("params"),
-            builder_ty: format_ident!("{}Builder", &ident),
-            struct_builder
-        }
-    }
-
-    pub fn new_item_impl(&self) -> TokenStream {
-        let Self {
-            item_ident,
-            item_ty,
-            params_ident,
-            params_ty,
-            builder_ty,
-            ..
-        } = &self;
-
-        let initialized_struct = self.struct_builder.initialized_struct(
-            item_ty.clone(),
-            parse_quote! { #params_ident }
-        );
-
-        let doc = format!(r#"
-            Create a new builder.
-
-            # Arguments
-
-            `{params_ident}` - The fields required by {item_ty}
-        "#);
-        quote! {
-            impl #item_ty {
-                #[doc=#doc]
-                pub fn builder(#params_ident: #params_ty) -> #builder_ty {
-                    #builder_ty {
-                        #item_ident: #initialized_struct
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn new_params_struct(&self) -> TokenStream {
-        let Self {
-            item_ty,
-            params_ty,
-            ..
-        } = &self;
-
-        let params_struct = self.struct_builder.params_struct(params_ty.clone());
-
-        let doc = format!(r#"
-            Represents the fields required by {item_ty} to be constructed.
-        "#);
-        quote! {
-            #[doc=#doc]
-            #params_struct
-        }
-    }
-
-    pub fn new_builder_struct(&self) -> TokenStream {
-        let Self {
-            item_ident,
-            item_ty,
-            builder_ty,
-            ..
-        } = &self;
-
-        let doc = format!(r#"
-            Represents a builder for the {item_ty} struct.
-        "#);
-        quote! {
-            #[doc=#doc]
-            pub struct #builder_ty {
-                #item_ident: #item_ty
-            }
-        }
-    }
-
-    pub fn new_builder_impl(&self) -> TokenStream {
-        let Self {
-            item_ident,
-            item_ty,
-            builder_ty,
-            ..
-        } = &self;
+        let subject_ident = item.ident;
+        let params_ident = format_ident!("{}Params", &subject_ident);
+        let builder_ident = format_ident!("{}Builder", &subject_ident);
+        let idents = ItemIdentifiers { subject_ident, params_ident, builder_ident };
         
-        let functions = self.struct_builder.builder_functions(item_ident.clone());
-
-        let doc = format!(r#"
-            Consume this builder and build {item_ty}
-        "#);
-        quote! {
-            impl #builder_ty {
-                #(#functions)*
-
-                #[doc=#doc]
-                pub fn build(self) -> #item_ty {
-                    self.#item_ident
-                }
-            }
-        }
-    }
-    
-    pub fn new_conversion_impl_from_params(&self) -> TokenStream {
-        let Self {
-            item_ty,
-            params_ident,
-            params_ty,
-            ..
-        } = &self;
-        
-        if self.struct_builder.stats().required_count > 0 {
-            quote! {
-                impl From<#params_ty> for #item_ty {
-                    fn from(value: #params_ty) -> Self {
-                        #item_ty::builder(value).build()
-                    }
-                }
-            }
-        } else {
-            let initialized_struct = self.struct_builder.initialized_struct(
-                item_ty.clone(),
-                parse_quote! { #params_ident }
-            );
-            
-            quote! {
-                impl Default for #item_ty {
-                    fn default() -> Self {
-                        #initialized_struct
-                    }
-                }
-            }
-        }
+        let struct_builder = item.fields.into();
+        Self { idents, struct_builder }
     }
 
-    pub fn new_builder_from_item(&self) -> TokenStream {
-        let Self {
-            item_ident,
-            item_ty,
-            builder_ty,
-            ..
-        } = &self;
-
-        quote! {
-            impl From<#item_ty> for #builder_ty {
-                fn from(value: #item_ty) -> Self {
-                    Self {
-                       #item_ident: value
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn new_item_from_builder(&self) -> TokenStream {
-        let Self {
-            item_ty,
-            builder_ty,
-            ..
-        } = &self;
-
-        quote! {
-            impl From<#builder_ty> for #item_ty {
-                fn from(value: #builder_ty) -> Self {
-                    value.build()
-                }
-            }
-        }
-    }
+    // pub fn new_item_impl(&self) -> TokenStream {
+    //     let Self {
+    //         item_ident,
+    //         item_ty,
+    //         params_ident,
+    //         params_ty,
+    //         builder_ty,
+    //         ..
+    //     } = &self;
+    // 
+    //     let initialized_struct = self.struct_builder.initialized_struct(
+    //         item_ty.clone(),
+    //         parse_quote! { #params_ident }
+    //     );
+    // 
+    //     let doc = format!(r#"
+    //         Create a new builder.
+    // 
+    //         # Arguments
+    // 
+    //         `{params_ident}` - The fields required by {item_ty}
+    //     "#);
+    //     quote! {
+    //         impl #item_ty {
+    //             #[doc=#doc]
+    //             pub fn builder(#params_ident: #params_ty) -> #builder_ty {
+    //                 #builder_ty {
+    //                     #item_ident: #initialized_struct
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // 
+    // pub fn new_params_struct(&self) -> TokenStream {
+    //     let Self {
+    //         item_ty,
+    //         params_ty,
+    //         ..
+    //     } = &self;
+    // 
+    //     let params_struct = self.struct_builder.params_struct(params_ty.clone());
+    // 
+    //     let doc = format!(r#"
+    //         Represents the fields required by {item_ty} to be constructed.
+    //     "#);
+    //     quote! {
+    //         #[doc=#doc]
+    //         #params_struct
+    //     }
+    // }
+    // 
+    // pub fn new_builder_struct(&self) -> TokenStream {
+    //     let Self {
+    //         item_ident,
+    //         item_ty,
+    //         builder_ty,
+    //         ..
+    //     } = &self;
+    // 
+    //     let doc = format!(r#"
+    //         Represents a builder for the {item_ty} struct.
+    //     "#);
+    //     quote! {
+    //         #[doc=#doc]
+    //         pub struct #builder_ty {
+    //             #item_ident: #item_ty
+    //         }
+    //     }
+    // }
+    // 
+    // pub fn new_builder_impl(&self) -> TokenStream {
+    //     let Self {
+    //         item_ident,
+    //         item_ty,
+    //         builder_ty,
+    //         ..
+    //     } = &self;
+    //     
+    //     let functions = self.struct_builder.builder_functions(item_ident.clone());
+    // 
+    //     let doc = format!(r#"
+    //         Consume this builder and build {item_ty}
+    //     "#);
+    //     quote! {
+    //         impl #builder_ty {
+    //             #(#functions)*
+    // 
+    //             #[doc=#doc]
+    //             pub fn build(self) -> #item_ty {
+    //                 self.#item_ident
+    //             }
+    //         }
+    //     }
+    // }
+    // 
+    // pub fn new_conversion_impl_from_params(&self) -> TokenStream {
+    //     let Self {
+    //         item_ty,
+    //         params_ident,
+    //         params_ty,
+    //         ..
+    //     } = &self;
+    //     
+    //     if self.struct_builder.stats().required_count > 0 {
+    //         quote! {
+    //             impl From<#params_ty> for #item_ty {
+    //                 fn from(value: #params_ty) -> Self {
+    //                     #item_ty::builder(value).build()
+    //                 }
+    //             }
+    //         }
+    //     } else {
+    //         let initialized_struct = self.struct_builder.initialized_struct(
+    //             item_ty.clone(),
+    //             parse_quote! { #params_ident }
+    //         );
+    //         
+    //         quote! {
+    //             impl Default for #item_ty {
+    //                 fn default() -> Self {
+    //                     #initialized_struct
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // 
+    // pub fn new_builder_from_item(&self) -> TokenStream {
+    //     let Self {
+    //         item_ident,
+    //         item_ty,
+    //         builder_ty,
+    //         ..
+    //     } = &self;
+    // 
+    //     quote! {
+    //         impl From<#item_ty> for #builder_ty {
+    //             fn from(value: #item_ty) -> Self {
+    //                 Self {
+    //                    #item_ident: value
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // 
+    // pub fn new_item_from_builder(&self) -> TokenStream {
+    //     let Self {
+    //         item_ty,
+    //         builder_ty,
+    //         ..
+    //     } = &self;
+    // 
+    //     quote! {
+    //         impl From<#builder_ty> for #item_ty {
+    //             fn from(value: #builder_ty) -> Self {
+    //                 value.build()
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 #[cfg(test)]
