@@ -2,7 +2,7 @@ use crate::builder::named_struct_builder::NamedStructBuilder;
 use crate::builder::unit_struct_builder::UnitStructBuilder;
 use crate::builder::unnamed_struct_builder::UnnamedStructBuilder;
 use proc_macro2::Ident;
-use syn::{Expr, Fields, ImplItemFn, ItemStruct};
+use syn::{Expr, Fields, ImplItemFn, ItemImpl, ItemStruct, Type};
 
 /// Defines the interface used by the [ItemBuilder] to construct syntax based on the type of struct being derived from.
 /// 
@@ -14,30 +14,40 @@ pub trait BuildStruct {
     /// 
     fn stats(&self) -> &BuildStructStats;
 
-    /// An expression representing the instantiation of the item struct being derived from.
+    /// The implementation of the subject item.
     /// 
     /// # Arguments
     /// 
-    /// `ident` - Identifier of the item struct's type.
-    /// `field_source` - Expression that defines the required fields of the item struct. This should used to initialize the required fields.
+    /// `ident` - The identifier of the subject item.
     /// 
-    fn initialized_struct(&self, ident: Ident, field_source: Expr) -> Expr;
+    fn subject_impl(&self, subject_ident: Ident) -> ItemImpl;
 
-    /// An item struct that represents the set of required fields needed to construct the item struct being derived from.
+    /// The definition of the params item.
     /// 
+    /// The params item defines required fields found in the subject item (those that don't have the [Option] type).
+    ///
     /// # Arguments
-    /// 
+    ///
     /// `ident` - The identifier of the param struct's type.
-    /// 
+    ///
     fn params_struct(&self, ident: Ident) -> ItemStruct;
-
+    
+    /// The implementation of the params item.
+    /// 
+    fn params_impl(&self, ident: Ident) -> ItemImpl;
+    
+    /// The definition of the builder item.
+    /// 
+    /// 
+    fn builder_struct(&self, ident: Ident) -> ItemStruct;
+    
     /// A list of functions as defined in an impl block that represent the builder's functions to be called by the user.
     /// 
     /// # Arguments
     /// 
     /// `item_ident` - The identifier of the field in the builder used to access the fields of the item struct being derived from.
     /// 
-    fn builder_functions(&self, item_ident: Ident) -> Vec<ImplItemFn>;
+    fn builder_impl(&self, item_ident: Ident) -> ItemImpl;
 }
 
 #[derive(Default)]
