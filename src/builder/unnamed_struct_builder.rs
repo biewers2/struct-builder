@@ -1,9 +1,9 @@
-use crate::builder::{BuildStruct, BuildStructStats};
+use crate::builder::common_struct_builder::{subject_impl_from_item_expr, InternalIdents};
 use crate::builder::required::is_required;
-use proc_macro2::Ident;
+use crate::builder::{BuildStruct, BuildStructStats, ItemIdents};
 use quote::format_ident;
 use syn::punctuated::Punctuated;
-use syn::{parse_quote, Expr, Field, FieldsUnnamed, ImplItemFn, Index, ItemStruct, Token, Visibility};
+use syn::{parse_quote, Expr, Field, FieldsUnnamed, ImplItemFn, Index, ItemImpl, ItemStruct, Token};
 
 pub struct UnnamedStructBuilder {
     stats: BuildStructStats,
@@ -20,60 +20,89 @@ impl BuildStruct for UnnamedStructBuilder {
     fn stats(&self) -> &BuildStructStats {
         &self.stats
     }
-    
-    fn initialized_struct(&self, ident: Ident, field_source: Expr) -> Expr {
-        let mut punctuated_fields = Punctuated::<Expr, Token![,]>::new();
 
+    fn subject_impl(&self, idents: &ItemIdents) -> Option<ItemImpl> {
+        let params_argument_name = InternalIdents::default().params_argument_name;
+        
         let mut next_index = 0;
-        for field_builder in &self.field_builders {
-            let expr: Expr = if field_builder.required {
-                let index = Index::from(next_index);
-                next_index += 1;
-                parse_quote! { #field_source.#index }
-            } else {
-                parse_quote! { ::std::option::Option::None }
-            };
-            punctuated_fields.push(expr);
-        }
+        let punctuated_fields = self.field_builders
+            .iter()
+            .map::<Expr, _>(|fb|
+                if fb.required {
+                    let index = Index::from(next_index);
+                    next_index += 1;
+                    parse_quote! { #params_argument_name.#index }
+                } else {
+                    parse_quote! { ::std::option::Option::None }
+                }
+            )
+            .collect::<Punctuated<Expr, Token![,]>>();
 
-        parse_quote! {
-            #ident(#punctuated_fields)
-        }
+        let item: Expr = parse_quote! { Self(#punctuated_fields) };
+        let item_impl = subject_impl_from_item_expr(&item, &idents);
+        Some(item_impl)
+    }
+    
+    fn params_struct(&self, idents: &ItemIdents) -> Option<ItemStruct> {
+        let params_ident = &idents.params_ident;
+        
+        let punctuated_fields = self.field_builders
+            .iter()
+            .filter(|fb| fb.required)
+            .map(|fb| fb.field.clone())
+            .collect::<Punctuated<Field, Token![,]>>();
+    
+        Some(parse_quote! {
+            pub struct #params_ident(#punctuated_fields);
+        })
     }
 
-    fn params_struct(&self, ident: Ident) -> ItemStruct {
-        let mut punctuated_fields = Punctuated::<Field, Token![,]>::new();
+    fn builder_struct(&self, idents: &ItemIdents) -> Option<ItemStruct> {
+        let ItemIdents {
+            subject_ident,
+            builder_ident,
+            ..
+        } = &idents;
+        let subject_field_ident = self.builder_subject_field_ident();
 
-        for field_builder in &self.field_builders {
-            if field_builder.required {
-                let mut field = field_builder.field.clone();
-                field.vis = Visibility::Public(Default::default());
-                punctuated_fields.push(field);
+        Some(parse_quote! {
+            pub struct #builder_ident {
+                #subject_field_ident: #subject_ident
             }
-        }
-
-        parse_quote! {
-            pub struct #ident(#punctuated_fields);
-        }
+        })
     }
 
-    fn builder_functions(&self, item_ident: Ident) -> Vec<ImplItemFn> {
-        let mut functions = Vec::<ImplItemFn>::new();
+    fn builder_impl(&self, idents: &ItemIdents) -> Option<ItemImpl> {
+        let ItemIdents {
+            subject_ident,
+            builder_ident,
+            ..
+        } = &idents;
+        let subject_field_ident = self.builder_subject_field_ident();
 
+        let mut functions = Vec::<ImplItemFn>::new();
         for field_builder in &self.field_builders {
             let field_index = &field_builder.index;
             let field_type = &field_builder.field.ty;
             let fn_ident = format_ident!("with_{}", &field_index);
-
+    
             functions.push(parse_quote! {
                 pub fn #fn_ident(mut self, value: #field_type) -> Self {
-                    self.#item_ident.#field_index = value;
+                    self.#subject_field_ident.#field_index = value;
                     self
                 }
             });
         }
 
-        functions
+        Some(parse_quote! {
+            impl #builder_ident {
+                #(#functions)*
+                
+                pub fn build(self) -> #subject_ident {
+                    self.#subject_field_ident
+                }
+            }
+        })
     }
 }
 
@@ -110,9 +139,9 @@ impl From<&[UnnamedFieldBuilder]> for BuildStructStats {
 #[cfg(test)]
 mod tests {
     use crate::builder::unnamed_struct_builder::{UnnamedFieldBuilder, UnnamedStructBuilder};
-    use crate::builder::BuildStruct;
+    use crate::builder::{BuildStruct, ItemIdents};
     use quote::{format_ident, ToTokens};
-    use syn::{parse_quote, Expr, FieldsUnnamed, ImplItemFn, Index, ItemStruct};
+    use syn::{parse_quote, FieldsUnnamed, Index, ItemImpl, ItemStruct};
 
     fn get_fields_unnamed() -> FieldsUnnamed {
         parse_quote! {
@@ -125,6 +154,14 @@ mod tests {
                 pub Box<dyn Send>,
                 pub Box<Option<dyn Send>>
             )
+        }
+    }
+
+    fn get_item_idents(base: impl AsRef<str>) -> ItemIdents {
+        ItemIdents {
+            subject_ident: format_ident!("{}", base.as_ref()),
+            params_ident: format_ident!("{}Params", base.as_ref()),
+            builder_ident: format_ident!("{}Builder", base.as_ref()),
         }
     }
 
@@ -193,107 +230,127 @@ mod tests {
     }
 
     #[test]
-    fn test_initialized_struct() {
+    fn test_subject_impl() {
         let builder = UnnamedStructBuilder::from(get_fields_unnamed());
-        let ident = format_ident!("MyStruct");
-        let field_source = parse_quote!(field.source);
-
-        let initialized_struct = builder.initialized_struct(ident, field_source);
-        let expected: Expr = parse_quote! {
-            MyStruct(
-                field.source.0,
-                field.source.1,
-                ::std::option::Option::None,
-                ::std::option::Option::None,
-                ::std::option::Option::None,
-                field.source.2,
-                field.source.3
-            )
+        let idents = get_item_idents("MyStruct");
+        
+        let subject_impl = builder.subject_impl(&idents);
+        let expected: ItemImpl = parse_quote! {
+            impl MyStruct {
+                pub fn builder(params: MyStructParams) -> MyStructBuilder {
+                    MyStructBuilder {
+                        inner: Self(
+                            params.0,
+                            params.1,
+                            ::std::option::Option::None,
+                            ::std::option::Option::None,
+                            ::std::option::Option::None,
+                            params.2,
+                            params.3
+                        )
+                    }
+                }
+            }
         };
-
+    
         assert_eq!(
-            initialized_struct.to_token_stream().to_string(),
+            subject_impl.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
         );
     }
-
+    
     #[test]
     fn test_params_struct() {
         let builder = UnnamedStructBuilder::from(get_fields_unnamed());
-        let ident = format_ident!("MyStructParams");
-
-        let params_struct = builder.params_struct(ident);
+        let idents = get_item_idents("MyStruct");
+    
+        let params_struct = builder.params_struct(&idents);
         let expected: ItemStruct = parse_quote! {
             pub struct MyStructParams(
                 pub String,
-                pub String,
+                String,
                 pub Box<dyn Send>,
                 pub Box<Option<dyn Send>>
             );
         };
-
+    
         assert_eq!(
             params_struct.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
         );
     }
 
+
+    #[test]
+    fn test_builder_struct() {
+        let builder = UnnamedStructBuilder::from(get_fields_unnamed());
+        let idents = get_item_idents("MyStruct");
+
+        let builder_struct = builder.builder_struct(&idents);
+        let expected: ItemStruct = parse_quote! {
+            pub struct MyStructBuilder {
+                inner: MyStruct
+            }
+        };
+
+        assert_eq!(
+            builder_struct.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
+    }
+    
     #[test]
     fn test_builder_functions() {
         let builder = UnnamedStructBuilder::from(get_fields_unnamed());
-        let item_ident = format_ident!("inner");
+        let idents = get_item_idents("MyStruct");
 
-        let builder_functions = builder.builder_functions(item_ident);
-        let expected: Vec<ImplItemFn> = vec![
-            parse_quote! {
+        let builder_impl = builder.builder_impl(&idents);
+        let expected: ItemImpl = parse_quote! {
+            impl MyStructBuilder {
                 pub fn with_0(mut self, value: String) -> Self {
                     self.inner.0 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_1(mut self, value: String) -> Self {
                     self.inner.1 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_2(mut self, value: Option<usize>) -> Self {
                     self.inner.2 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_3(mut self, value: std::option::Option<String>) -> Self {
                     self.inner.3 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_4(mut self, value: option::Option<T>) -> Self {
                     self.inner.4 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_5(mut self, value: Box<dyn Send>) -> Self {
                     self.inner.5 = value;
                     self
                 }
-            },
-            parse_quote! {
+
                 pub fn with_6(mut self, value: Box<Option<dyn Send>>) -> Self {
                     self.inner.6 = value;
                     self
                 }
+                
+                pub fn build(self) -> MyStruct {
+                    self.inner
+                }
             }
-        ];
+        };
 
-        for (function, expected) in builder_functions.iter().zip(expected) {
-            assert_eq!(
-                function.to_token_stream().to_string(),
-                expected.to_token_stream().to_string()
-            );
-        }
+        assert_eq!(
+            builder_impl.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
     }
 }
