@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
 use syn::{Ident, ItemStruct};
-use crate::components::{BuilderStruct, ImplBuilderFns, ImplSubjectFnBuilder, ParamsStruct};
+use crate::components::{BuilderStruct, ImplBuilderFns, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
 
 const PARAMS_ARGUMENT_NAME: &str = "params";
 const BUILDER_SUBJECT_FIELD_NAME: &str = "inner";
@@ -37,6 +37,8 @@ impl ToTokens for StructBuilder {
             Box::new(ParamsStruct::from(item)),
             Box::new(BuilderStruct::from(item)),
             Box::new(ImplBuilderFns::from(item)),
+            Box::new(ImplFromParamsForSubject::from(item)),
+            Box::new(ImplFromSubjectForBuilder::from(item)),
         ];
 
         token_streams.iter().for_each(|ts| ts.to_tokens(tokens));
