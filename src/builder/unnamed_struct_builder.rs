@@ -1,4 +1,4 @@
-use crate::builder::common_struct_builder::{subject_impl_from_item_expr, InternalIdents};
+use crate::builder::common_struct_building::{subject_impl_from_expr, InternalIdents};
 use crate::builder::required::is_required;
 use crate::builder::{BuildStruct, BuildStructStats, ItemIdents};
 use quote::format_ident;
@@ -22,7 +22,15 @@ impl BuildStruct for UnnamedStructBuilder {
     }
 
     fn subject_impl(&self, idents: &ItemIdents) -> Option<ItemImpl> {
-        let params_argument_name = InternalIdents::default().params_argument_name;
+        let ItemIdents {
+            subject_ident,
+            params_ident,
+            builder_ident
+        } = &idents;
+        let InternalIdents {
+            builder_subject_field: builder_subject_field_name,
+            params_argument: params_argument_name
+        } = Default::default();
         
         let mut next_index = 0;
         let punctuated_fields = self.field_builders
@@ -37,10 +45,16 @@ impl BuildStruct for UnnamedStructBuilder {
                 }
             )
             .collect::<Punctuated<Expr, Token![,]>>();
-
-        let item: Expr = parse_quote! { Self(#punctuated_fields) };
-        let item_impl = subject_impl_from_item_expr(&item, &idents);
-        Some(item_impl)
+        
+        Some(parse_quote! {
+            impl #subject_ident {
+                pub fn builder(#params_argument_name: #params_ident) -> #builder_ident {
+                    #builder_ident {
+                        #builder_subject_field_name: Self(#punctuated_fields)
+                    }
+                }
+            }
+        })
     }
     
     fn params_struct(&self, idents: &ItemIdents) -> Option<ItemStruct> {
@@ -63,11 +77,11 @@ impl BuildStruct for UnnamedStructBuilder {
             builder_ident,
             ..
         } = &idents;
-        let subject_field_ident = self.builder_subject_field_ident();
+        let builder_subject_field = InternalIdents::default().builder_subject_field;
 
         Some(parse_quote! {
             pub struct #builder_ident {
-                #subject_field_ident: #subject_ident
+                #builder_subject_field: #subject_ident
             }
         })
     }

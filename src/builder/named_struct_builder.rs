@@ -4,7 +4,7 @@ use proc_macro2::Ident;
 use quote::format_ident;
 use syn::punctuated::Punctuated;
 use syn::{parse_quote, Expr, Field, FieldValue, FieldsNamed, ImplItemFn, ItemImpl, ItemStruct, Token};
-use crate::builder::common_struct_builder::{subject_impl_from_item_expr, InternalIdents};
+use crate::builder::common_struct_building::{subject_impl_from_expr, InternalIdents};
 
 pub struct NamedStructBuilder {
     stats: BuildStructStats,
@@ -23,23 +23,37 @@ impl BuildStruct for NamedStructBuilder {
     }
 
     fn subject_impl(&self, idents: &ItemIdents) -> Option<ItemImpl> {
-        let params_argument_name = InternalIdents::default().params_argument_name;
+        let ItemIdents {
+            subject_ident,
+            params_ident,
+            builder_ident
+        } = &idents;
+        let InternalIdents {
+            builder_subject_field,
+            params_argument,
+        } = Default::default();
 
         let punctuated_fields = self.field_builders 
             .iter()
             .map::<FieldValue, _>(|fb| {
                 let field_ident = &fb.ident;
                 if fb.required {
-                    parse_quote! { #field_ident: #params_argument_name.#field_ident }
+                    parse_quote! { #field_ident: #params_argument.#field_ident }
                 } else {
                     parse_quote! { #field_ident: ::std::option::Option::None }
                 }
             })
             .collect::<Punctuated<FieldValue, Token![,]>>();
 
-        let item: Expr = parse_quote! { Self { #punctuated_fields } };
-        let item_impl = subject_impl_from_item_expr(&item, &idents);
-        Some(item_impl)
+        Some(parse_quote! {
+            impl #subject_ident {
+                pub fn builder(#params_argument: #params_ident) -> #builder_ident {
+                    #builder_ident {
+                        #builder_subject_field: Self { #punctuated_fields }
+                    }
+                }
+            }
+        })
     }
     
     fn params_struct(&self, idents: &ItemIdents) -> Option<ItemStruct> {
@@ -64,11 +78,11 @@ impl BuildStruct for NamedStructBuilder {
             builder_ident,
             ..
         } = &idents;
-        let subject_field_ident = self.builder_subject_field_ident();
+        let builder_subject_field = InternalIdents::default().builder_subject_field;
 
         Some(parse_quote! {
             pub struct #builder_ident {
-                #subject_field_ident: #subject_ident
+                #builder_subject_field: #subject_ident
             }
         })
     }
@@ -79,7 +93,7 @@ impl BuildStruct for NamedStructBuilder {
             builder_ident,
             ..
         } = &idents;
-        let subject_field_ident = self.builder_subject_field_ident();
+        let builder_subject_field = InternalIdents::default().builder_subject_field;
 
         let mut functions = Vec::<ImplItemFn>::new();
         for field_builder in &self.field_builders {
@@ -89,7 +103,7 @@ impl BuildStruct for NamedStructBuilder {
 
             functions.push(parse_quote! {
                 pub fn #fn_ident(mut self, value: #field_type) -> Self {
-                    self.#subject_field_ident.#field_ident = value;
+                    self.#builder_subject_field.#field_ident = value;
                     self
                 }
             });
@@ -100,7 +114,7 @@ impl BuildStruct for NamedStructBuilder {
                 #(#functions)*
                 
                 pub fn build(self) -> #subject_ident {
-                    self.#subject_field_ident
+                    self.#builder_subject_field
                 }
             }
         })
