@@ -101,10 +101,13 @@
 
 extern crate proc_macro;
 
-mod builder;
+// mod builder;
+mod components;
+mod struct_builder;
 
-use builder::StructBuilder;
+use quote::quote;
 use syn::{parse_macro_input, ItemStruct};
+use crate::struct_builder::StructBuilder;
 
 /// Derive a struct builder for a struct.
 ///
@@ -112,10 +115,7 @@ use syn::{parse_macro_input, ItemStruct};
 #[proc_macro_derive(StructBuilder)]
 pub fn derive_builder(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = parse_macro_input!(item as ItemStruct);
+    let struct_builder = StructBuilder(item);
 
-    proc_macro::TokenStream::from(
-        proc_macro2::TokenStream::from(
-            StructBuilder::from(item)
-        )
-    )
+    proc_macro::TokenStream::from(quote! { #struct_builder })
 }
