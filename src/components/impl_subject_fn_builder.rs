@@ -1,32 +1,33 @@
-use crate::struct_builder::BuilderIdents;
+use crate::struct_builder::{BuilderContext, GenericsContext};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::{parse_quote, Expr, Field, FieldValue, Fields, Index, ItemImpl, ItemStruct, Token, Type};
 
 pub struct ImplSubjectFnBuilder {
-    idents: BuilderIdents,
+    ctx: BuilderContext,
     fields: Fields
 }
 
 impl From<&ItemStruct> for ImplSubjectFnBuilder {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderIdents::from(value);
+        let ctx: BuilderContext = value.into();
         let fields = value.fields.clone();
         
-        Self { idents, fields }
+        Self { ctx, fields }
     }
 }
 
 impl ToTokens for ImplSubjectFnBuilder {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let BuilderIdents { 
+        let BuilderContext { 
             subject,
             params,
             params_argument,
             builder,
-            builder_subject_field
-        } = &self.idents;
+            builder_subject_field,
+            generics
+        } = &self.ctx;
         
         let optional_expr: Option<Expr> = match &self.fields {
             Fields::Named(named_fields) => {
@@ -67,9 +68,15 @@ impl ToTokens for ImplSubjectFnBuilder {
         };
 
         if let Some(expr) = optional_expr {
+            let GenericsContext {
+                generics_def,
+                generics_expr,
+                where_clause
+            } = &generics;
+            
             let item_impl: ItemImpl = parse_quote! {
-                impl #subject {
-                    pub fn builder(#params_argument: #params) -> #builder {
+                impl #generics_def #subject #generics_expr #where_clause {
+                    pub fn builder(#params_argument: #params #generics_expr) -> #builder #generics_expr {
                         #builder {
                             #builder_subject_field: #expr
                         }
@@ -95,27 +102,21 @@ pub fn is_required(field: &Field) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use proc_macro2::TokenStream;
     use crate::components::impl_subject_fn_builder::ImplSubjectFnBuilder;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro2::TokenStream;
     use quote::ToTokens;
-    use syn::{parse_quote, ItemImpl, ItemStruct};
-    
+    use syn::{parse_quote, ItemImpl};
+
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl MyStruct {
-                pub fn builder(params: MyStructParams) -> MyStructBuilder {
+            impl<T, I: Send, W> MyStruct<T, I, W>
+            where
+                W: Sync
+            {
+                pub fn builder(params: MyStructParams<T, I, W>) -> MyStructBuilder<T, I, W> {
                     MyStructBuilder {
                         inner: Self {
                             public_field: params.public_field,
@@ -124,7 +125,10 @@ mod tests {
                             test: ::std::option::Option::None,
                             test2: ::std::option::Option::None,
                             dynamic: params.dynamic,
-                            dynamic2: params.dynamic2
+                            dynamic2: params.dynamic2,
+                            generic: params.generic,
+                            generic_inline: params.generic_inline,
+                            generic_where: params.generic_where
                         }
                     }
                 }
@@ -141,20 +145,13 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>
-            );
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl MyStruct {
-                pub fn builder(params: MyStructParams) -> MyStructBuilder {
+            impl<T, I: Send, W> MyStruct<T, I, W>
+            where
+                W: Sync
+            {
+                pub fn builder(params: MyStructParams<T, I, W>) -> MyStructBuilder<T, I, W> {
                     MyStructBuilder {
                         inner: Self(
                             params.0,
@@ -163,7 +160,10 @@ mod tests {
                             ::std::option::Option::None,
                             ::std::option::Option::None,
                             params.2,
-                            params.3
+                            params.3,
+                            params.4,
+                            params.5,
+                            params.6
                         )
                     }
                 }
@@ -180,7 +180,7 @@ mod tests {
     
     #[test]
     fn test_with_unit_struct() {
-        let item_struct = parse_quote! { pub struct MyStruct; };
+        let item_struct = sample_unit_item_struct();
         
         let subject_impl = ImplSubjectFnBuilder::from(&item_struct);
         
