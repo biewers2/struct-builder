@@ -1,5 +1,5 @@
-use proc_macro2::TokenStream;
 use crate::struct_builder::{BuilderContext, GenericsContext};
+use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Fields, ImplItemFn, Index, ItemImpl, ItemStruct};
 
@@ -96,11 +96,11 @@ impl ToTokens for ImplBuilderFns {
 
 #[cfg(test)]
 mod tests {
-    use proc_macro::TokenStream;
-    use quote::ToTokens;
-    use syn::{parse_quote, ItemImpl, ItemStruct};
     use crate::components::ImplBuilderFns;
     use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro::TokenStream;
+    use quote::ToTokens;
+    use syn::{parse_quote, ItemImpl};
 
     #[test]
     fn test_with_named_fields() {

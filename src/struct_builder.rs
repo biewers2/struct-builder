@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
-use syn::{parse_quote, GenericParam, Generics, Ident, ItemStruct, Token, TypeParam, WhereClause};
+use syn::{parse_quote, ConstParam, GenericParam, Generics, Ident, ItemStruct, LifetimeParam, Token, TypeParam, WhereClause};
 use syn::punctuated::Punctuated;
 use crate::components::{BuilderStruct, ImplBuilderFns, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
 
@@ -46,9 +46,14 @@ impl From<&Generics> for GenericsContext {
         generics_expr.params = generics_expr.params
             .into_iter()
             .map(|p| match p {
-                GenericParam::Lifetime(_) => todo!(),
-                GenericParam::Type(TypeParam { ident, .. }) => GenericParam::Type(parse_quote! { #ident }),
-                GenericParam::Const(_) => todo!()
+                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
+                    GenericParam::Lifetime(parse_quote! { #lifetime }),
+                
+                GenericParam::Type(TypeParam { ident, .. }) =>
+                    GenericParam::Type(parse_quote! { #ident }),
+                
+                GenericParam::Const(ConstParam { ident, .. }) =>
+                    GenericParam::Const(parse_quote! { #ident })
             })
             .collect::<Punctuated<GenericParam, Token![,]>>();
         
