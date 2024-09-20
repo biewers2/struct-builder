@@ -1,16 +1,16 @@
 use proc_macro2::TokenStream;
-use crate::struct_builder::BuilderIdents;
+use crate::struct_builder::BuilderContext;
 use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Fields, ImplItemFn, Index, ItemImpl, ItemStruct};
 
 pub struct ImplBuilderFns {
-    idents: BuilderIdents,
+    idents: BuilderContext,
     fields: Fields
 }
 
 impl From<&ItemStruct> for ImplBuilderFns {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderIdents::from(value);
+        let idents = BuilderContext::from(value);
         let fields = value.fields.clone();
 
         Self { idents, fields }
@@ -19,7 +19,7 @@ impl From<&ItemStruct> for ImplBuilderFns {
 
 impl ToTokens for ImplBuilderFns {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let BuilderIdents {
+        let BuilderContext {
             subject,
             builder,
             builder_subject_field,

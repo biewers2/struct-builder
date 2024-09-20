@@ -1,16 +1,16 @@
-use crate::struct_builder::BuilderIdents;
+use crate::struct_builder::BuilderContext;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{parse_quote, Fields, ItemImpl, ItemStruct};
 
 pub struct ImplFromSubjectForBuilder {
-    idents: BuilderIdents,
+    idents: BuilderContext,
     unit: bool
 }
 
 impl From<&ItemStruct> for ImplFromSubjectForBuilder {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderIdents::from(value);
+        let idents = BuilderContext::from(value);
         let unit = if let Fields::Unit = &value.fields { true } else { false };
 
         Self { idents, unit }
@@ -19,7 +19,7 @@ impl From<&ItemStruct> for ImplFromSubjectForBuilder {
 
 impl ToTokens for ImplFromSubjectForBuilder {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let BuilderIdents {
+        let BuilderContext {
             subject,
             builder,
             builder_subject_field,

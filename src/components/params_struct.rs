@@ -1,4 +1,4 @@
-use crate::struct_builder::BuilderIdents;
+use crate::struct_builder::BuilderContext;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{parse_quote, Field, Fields, ItemStruct, Token};
@@ -6,28 +6,32 @@ use syn::punctuated::Punctuated;
 use crate::components::is_required;
 
 pub struct ParamsStruct {
-    idents: BuilderIdents,
+    ctx: BuilderContext,
     fields: Fields
 }
 
 impl From<&ItemStruct> for ParamsStruct {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderIdents::from(value);
+        let idents = BuilderContext::from(value);
         let fields = value.fields.clone();
 
-        Self { idents, fields }
+        Self { ctx: idents, fields }
     }
 }
 
 impl ToTokens for ParamsStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let params = &self.idents.params;
+        let BuilderContext {
+            params,
+            generics,
+            ..
+        } = &self.ctx;
         
         match &self.fields {
             Fields::Named(_) => {
                 let punctuated_fields = self.punctuated_fields();
                 let item_struct: ItemStruct = parse_quote! {
-                    pub struct #params {
+                    pub struct #params #generics {
                         #punctuated_fields
                     }
                 };
@@ -38,7 +42,7 @@ impl ToTokens for ParamsStruct {
             Fields::Unnamed(_) => {
                 let punctuated_fields = self.punctuated_fields();
                 let item_struct: ItemStruct = parse_quote! {
-                    pub struct #params ( #punctuated_fields );
+                    pub struct #params #generics ( #punctuated_fields );
                 };
 
                 item_struct.to_tokens(tokens);
