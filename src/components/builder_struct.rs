@@ -1,17 +1,19 @@
 use crate::struct_builder::{BuilderContext, GenericsContext};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{parse_quote, ItemStruct};
+use syn::{parse_quote, Fields, ItemStruct};
 
 pub struct BuilderStruct {
-    ctx: BuilderContext
+    ctx: BuilderContext,
+    unit: bool
 }
 
 impl From<&ItemStruct> for BuilderStruct {
     fn from(value: &ItemStruct) -> Self {
         let ctx: BuilderContext = value.into();
+        let unit = matches!(value.fields, Fields::Unit);
 
-        Self { ctx }
+        Self { ctx, unit }
     }
 }
 
@@ -30,41 +32,29 @@ impl ToTokens for BuilderStruct {
             where_clause,
         } = &generics;
 
-        let builder_struct: ItemStruct = parse_quote! {
-            pub struct #builder #generics_def #where_clause {
-                #builder_subject_field: #subject #generics_expr
-            }
-        };
-        
-        builder_struct.to_tokens(tokens);
+        if !self.unit {
+            let builder_struct: ItemStruct = parse_quote! {
+                pub struct #builder #generics_def #where_clause {
+                    #builder_subject_field: #subject #generics_expr
+                }
+            };
+
+            builder_struct.to_tokens(tokens);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::components::BuilderStruct;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro::TokenStream;
     use quote::ToTokens;
     use syn::{parse_quote, ItemStruct};
-    use crate::components::BuilderStruct;
 
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>
-            where
-                W: Sync
-            {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>,
-                pub generic: T,
-                pub generic_inline: Option<I>,
-                pub generic_where: W
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemStruct = parse_quote! {
             pub struct MyStructBuilder<T, I: Send, W>
             where
@@ -84,22 +74,7 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>,
-                pub T,
-                pub Option<I>,
-                pub W
-            )
-            where
-                W: Sync;
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemStruct = parse_quote! {
             pub struct MyStructBuilder<T, I: Send, W>
             where
@@ -114,6 +89,18 @@ mod tests {
         assert_eq!(
             builder_struct.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
+        );
+    }
+    
+    #[test]
+    fn test_with_unit_struct() {
+        let item_struct = sample_unit_item_struct();
+
+        let builder_struct = BuilderStruct::from(&item_struct);
+
+        assert_eq!(
+            builder_struct.to_token_stream().to_string(),
+            TokenStream::new().to_string()
         );
     }
 }

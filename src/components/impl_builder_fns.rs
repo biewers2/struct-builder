@@ -100,23 +100,11 @@ mod tests {
     use quote::ToTokens;
     use syn::{parse_quote, ItemImpl, ItemStruct};
     use crate::components::ImplBuilderFns;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
 
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>
-            where
-                W: Sync
-            {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemImpl = parse_quote! {
             impl<T, I: Send, W> MyStructBuilder<T, I, W>
             where
@@ -157,6 +145,21 @@ mod tests {
                     self
                 }
                 
+                pub fn with_generic(mut self, value: T) -> Self {
+                    self.inner.generic = value;
+                    self
+                }
+                
+                pub fn with_generic_inline(mut self, value: I) -> Self {
+                    self.inner.generic_inline = value;
+                    self
+                }
+                
+                pub fn with_generic_where(mut self, value: W) -> Self {
+                    self.inner.generic_where = value;
+                    self
+                }
+                
                 pub fn build(self) -> MyStruct<T, I, W> {
                     self.inner
                 }
@@ -173,19 +176,7 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>
-            )
-            where
-                W: Sync;
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemImpl = parse_quote! {
             impl<T, I: Send, W> MyStructBuilder<T, I, W>
             where
@@ -226,6 +217,21 @@ mod tests {
                     self
                 }
                 
+                pub fn with_7(mut self, value: T) -> Self {
+                    self.inner.7 = value;
+                    self
+                }
+                
+                pub fn with_8(mut self, value: I) -> Self {
+                    self.inner.8 = value;
+                    self
+                }
+                
+                pub fn with_9(mut self, value: W) -> Self {
+                    self.inner.9 = value;
+                    self
+                }
+                
                 pub fn build(self) -> MyStruct<T, I, W> {
                     self.inner
                 }
@@ -242,7 +248,7 @@ mod tests {
     
     #[test]
     fn test_with_unit_struct() {
-        let item_struct = parse_quote! { pub struct MyStruct; };
+        let item_struct = sample_unit_item_struct();
 
         let impl_builder_fns = ImplBuilderFns::from(&item_struct);
 

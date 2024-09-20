@@ -45,3 +45,68 @@ impl ToTokens for ImplFromSubjectForBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::components::{ImplFromParamsForSubject, ImplFromSubjectForBuilder};
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro2::TokenStream;
+    use quote::ToTokens;
+    use syn::{parse_quote, ItemImpl};
+
+    #[test]
+    fn test_with_named_fields() {
+        let item_struct = sample_named_item_struct();
+        let expected: ItemImpl = parse_quote! {
+            impl<T, I: Send, W> From<MyStruct<T, I, W>> for MyStructBuilder<T, I, W>
+            where
+                W: Sync
+            {
+                fn from(value: MyStruct<T, I, W>) -> Self {
+                    Self { inner: value }
+                }
+            }
+        };
+
+        let impl_from_subject_for_builder = ImplFromSubjectForBuilder::from(&item_struct);
+
+        assert_eq!(
+            impl_from_subject_for_builder.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
+    }
+
+    #[test]
+    fn test_with_unnamed_fields() {
+        let item_struct = sample_unnamed_item_struct();
+        let expected: ItemImpl = parse_quote! {
+            impl<T, I: Send, W> From<MyStruct<T, I, W>> for MyStructBuilder<T, I, W>
+            where
+                W: Sync
+            {
+                fn from(value: MyStruct<T, I, W>) -> Self {
+                    Self { inner: value }
+                }
+            }
+        };
+
+        let impl_from_subject_for_builder = ImplFromSubjectForBuilder::from(&item_struct);
+
+        assert_eq!(
+            impl_from_subject_for_builder.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
+    }
+
+    #[test]
+    fn test_with_unit_struct() {
+        let item_struct = sample_unit_item_struct();
+
+        let subject_impl = ImplFromParamsForSubject::from(&item_struct);
+
+        assert_eq!(
+            subject_impl.to_token_stream().to_string(),
+            TokenStream::new().to_string()
+        );
+    }
+}

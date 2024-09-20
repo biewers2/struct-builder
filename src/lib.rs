@@ -103,6 +103,8 @@ extern crate proc_macro;
 
 mod components;
 mod struct_builder;
+#[cfg(test)]
+mod test_util;
 
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct};

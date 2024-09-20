@@ -102,30 +102,15 @@ pub fn is_required(field: &Field) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use proc_macro2::TokenStream;
     use crate::components::impl_subject_fn_builder::ImplSubjectFnBuilder;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro2::TokenStream;
     use quote::ToTokens;
-    use syn::{parse_quote, ItemImpl, ItemStruct};
-    
+    use syn::{parse_quote, ItemImpl};
+
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>
-            where
-                W: Sync
-            {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>,
-                pub generic: T,
-                pub generic_inline: I,
-                pub generic_where: W
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemImpl = parse_quote! {
             impl<T, I: Send, W> MyStruct<T, I, W>
             where
@@ -160,22 +145,7 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>,
-                pub T,
-                pub I,
-                pub W
-            )
-            where
-                W: Sync;
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemImpl = parse_quote! {
             impl<T, I: Send, W> MyStruct<T, I, W>
             where
@@ -210,7 +180,7 @@ mod tests {
     
     #[test]
     fn test_with_unit_struct() {
-        let item_struct = parse_quote! { pub struct MyStruct; };
+        let item_struct = sample_unit_item_struct();
         
         let subject_impl = ImplSubjectFnBuilder::from(&item_struct);
         
