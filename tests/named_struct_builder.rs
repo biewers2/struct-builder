@@ -1,7 +1,10 @@
 use struct_builder::StructBuilder;
 
 #[derive(StructBuilder)]
-pub struct Platypus<T> {
+pub struct Platypus<T>
+where
+    T: Copy
+{
     pub age: u8,
     pub color: (u8, u8, u8),
     pub name: Option<String>,
@@ -25,5 +28,5 @@ fn test_named_struct_builder() {
     assert_eq!(platypus.age, 4);
     assert_eq!(platypus.color, (36, 167, 161));
     assert_eq!(platypus.name, Some(String::from("Perry")));
-    assert_eq!(platypus.is_perry, Some(true));
+    assert_eq!(platypus.is_perry, true);
 }

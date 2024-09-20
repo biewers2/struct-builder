@@ -10,7 +10,7 @@ pub struct Platypus<T>(
 
 #[test]
 fn test_unnamed_struct_builder() {
-    let params = PlatypusParams<bool>(3, (36, 167, 161), true);
+    let params = PlatypusParams(3, (36, 167, 161), true);
 
     let platypus = Platypus::builder(params)
         .with_2(Some(String::from("Perry")))

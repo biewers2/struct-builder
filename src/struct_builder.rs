@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
-use syn::{parse_quote, GenericParam, Generics, Ident, ItemStruct, TypeParam};
+use syn::{parse_quote, GenericParam, Generics, Ident, ItemStruct, Token, TypeParam, WhereClause};
+use syn::punctuated::Punctuated;
 use crate::components::{BuilderStruct, ImplBuilderFns, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
 
 const PARAMS_ARGUMENT_NAME: &str = "params";
@@ -14,13 +15,13 @@ pub struct BuilderContext {
     pub params_argument: Ident,
     pub builder: Ident,
     pub builder_subject_field: Ident,
-    pub generics: Generics
+    pub generics: GenericsContext
 }
 
 pub struct GenericsContext {
-    generics_def: Generics,
-    generics_expr: Generics,
-    where_expr: Generics
+    pub generics_def: Generics,
+    pub generics_expr: Generics,
+    pub where_clause: Option<WhereClause>
 }
 
 impl From<&ItemStruct> for BuilderContext {
@@ -31,7 +32,7 @@ impl From<&ItemStruct> for BuilderContext {
             params_argument: format_ident!("{}", PARAMS_ARGUMENT_NAME),
             builder: format_ident!("{}Builder", &item.ident),
             builder_subject_field: format_ident!("{}", BUILDER_SUBJECT_FIELD_NAME),
-            generics: item.generics.clone()
+            generics: GenericsContext::from(&item.generics)
         }
     }
 }
@@ -42,11 +43,22 @@ impl From<&Generics> for GenericsContext {
         generics_def.where_clause = None;
 
         let mut generics_expr = value.clone();
-        // generics_expr.params.into_iter().map(|p| match p {
-        //     GenericParam::Lifetime(_) => todo!(),
-        //     GenericParam::Type(TypeParam { ident, .. }) => parse_quote! { #ident }),
-        //     GenericParam::Const(_) => panic!("not supported!")
-        // })
+        generics_expr.params = generics_expr.params
+            .into_iter()
+            .map(|p| match p {
+                GenericParam::Lifetime(_) => todo!(),
+                GenericParam::Type(TypeParam { ident, .. }) => GenericParam::Type(parse_quote! { #ident }),
+                GenericParam::Const(_) => todo!()
+            })
+            .collect::<Punctuated<GenericParam, Token![,]>>();
+        
+        let where_clause = value.where_clause.clone();
+        
+        GenericsContext {
+            generics_def,
+            generics_expr,
+            where_clause
+        }
     }
 }
 

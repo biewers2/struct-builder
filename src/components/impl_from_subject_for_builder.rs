@@ -1,19 +1,19 @@
-use crate::struct_builder::BuilderContext;
+use crate::struct_builder::{BuilderContext, GenericsContext};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{parse_quote, Fields, ItemImpl, ItemStruct};
 
 pub struct ImplFromSubjectForBuilder {
-    idents: BuilderContext,
+    ctx: BuilderContext,
     unit: bool
 }
 
 impl From<&ItemStruct> for ImplFromSubjectForBuilder {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderContext::from(value);
-        let unit = if let Fields::Unit = &value.fields { true } else { false };
+        let ctx: BuilderContext = value.into();
+        let unit = matches!(&value.fields, Fields::Unit);
 
-        Self { idents, unit }
+        Self { ctx, unit }
     }
 }
 
@@ -23,13 +23,19 @@ impl ToTokens for ImplFromSubjectForBuilder {
             subject,
             builder,
             builder_subject_field,
+            generics,
             ..
-        } = &self.idents;
+        } = &self.ctx;
+        let GenericsContext {
+            generics_def,
+            generics_expr,
+            where_clause
+        } = &generics;
 
         if !self.unit {
             let item_impl: ItemImpl = parse_quote! {
-                impl From<#subject> for #builder {
-                    fn from(value: #subject) -> Self {
+                impl #generics_def From<#subject #generics_expr> for #builder #generics_expr #where_clause {
+                    fn from(value: #subject #generics_expr) -> Self {
                         Self { #builder_subject_field: value }
                     }
                 }
