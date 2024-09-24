@@ -5,16 +5,16 @@ use syn::punctuated::Punctuated;
 use syn::{parse_quote, Expr, Field, FieldValue, Fields, Index, ItemImpl, ItemStruct, Token, Type};
 
 pub struct ImplSubjectFnBuilder {
-    idents: BuilderContext,
+    ctx: BuilderContext,
     fields: Fields
 }
 
 impl From<&ItemStruct> for ImplSubjectFnBuilder {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderContext::from(value);
+        let ctx = BuilderContext::from(value);
         let fields = value.fields.clone();
         
-        Self { idents, fields }
+        Self { ctx: ctx, fields }
     }
 }
 
@@ -26,8 +26,9 @@ impl ToTokens for ImplSubjectFnBuilder {
             params_argument,
             builder,
             builder_subject_field,
-            generics
-        } = &self.idents;
+            generics,
+            ..
+        } = &self.ctx;
         
         let optional_expr: Option<Expr> = match &self.fields {
             Fields::Named(named_fields) => {
