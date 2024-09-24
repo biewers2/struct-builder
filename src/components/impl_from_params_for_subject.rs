@@ -23,6 +23,7 @@ impl ToTokens for ImplFromParamsForSubject {
             subject,
             params,
             generics,
+            fields_metadata,
             ..
         } = &self.ctx;
         let GenericsContext {
@@ -30,14 +31,26 @@ impl ToTokens for ImplFromParamsForSubject {
             generics_expr,
             where_clause
         } = &generics;
+        
+        let include_params_generics = fields_metadata.generic_required_fields_count > 0;
 
         if !self.unit {
-            let item_impl: ItemImpl = parse_quote! {
-                impl #generics_def From<#params #generics_expr> for #subject #generics_expr #where_clause {
-                    fn from(value: #params #generics_expr) -> Self {
-                        Self::builder(value).build()
+            let item_impl: ItemImpl = if include_params_generics {
+                parse_quote! {
+                    impl #generics_def From<#params #generics_expr> for #subject #generics_expr #where_clause {
+                        fn from(value: #params #generics_expr) -> Self {
+                            Self::builder(value).build()
+                        }
                     }
                 }
+            } else {
+                parse_quote! {
+                    impl #generics_def From<#params> for #subject #generics_expr #where_clause {
+                        fn from(value: #params) -> Self {
+                            Self::builder(value).build()
+                        }
+                    }
+                }               
             };
 
             item_impl.to_tokens(tokens);

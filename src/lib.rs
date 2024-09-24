@@ -112,9 +112,9 @@ extern crate proc_macro;
 
 mod components;
 mod struct_builder;
+mod generic_resolution;
 #[cfg(test)]
 mod test_util;
-mod generic_resolution;
 
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct};

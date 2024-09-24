@@ -130,7 +130,15 @@ mod tests {
         test_ptr_has_type     |{ <T>  }|{ value: *mut T   }| true,
         
         test_reference_no_generics  |{      }|{ value: &'static A }| false,
-        test_reference_has_type     |{ <T>  }|{ value: &'static T }| false,
-        test_reference_has_lifetime |{ <'a> }|{ value: &'a T      }| false,
+        test_reference_has_type     |{ <T>  }|{ value: &'static T }| true,
+        test_reference_has_lifetime |{ <'a> }|{ value: &'a T      }| true,
+        
+        test_slice_no_generics  |{      }|{ value: &'static [A] }| false,
+        test_slice_has_type     |{ <T>  }|{ value: &'static [T] }| true,
+        test_slice_has_lifetime |{ <'a> }|{ value: &'a [A]      }| true,
+        
+        test_tuple_no_generics  |{      }|{ value: (A, B, C)  }| false,
+        test_tuple_has_type     |{ <T>  }|{ value: (A, B, T)  }| true,
+        test_tuple_has_lifetime |{ <'a> }|{ value: (&'a A, B) }| true,
     }
 }

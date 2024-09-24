@@ -27,6 +27,7 @@ impl ToTokens for ImplSubjectFnBuilder {
             builder,
             builder_subject_field,
             generics,
+            fields_metadata,
             ..
         } = &self.ctx;
         
@@ -74,12 +75,26 @@ impl ToTokens for ImplSubjectFnBuilder {
                 generics_expr,
                 where_clause
             } = &generics;
+
+            let include_params_generics = fields_metadata.generic_required_fields_count > 0;
             
-            let item_impl: ItemImpl = parse_quote! {
-                impl #generics_def #subject #generics_expr #where_clause {
-                    pub fn builder(#params_argument: #params #generics_expr) -> #builder #generics_expr {
-                        #builder {
-                            #builder_subject_field: #expr
+            let item_impl: ItemImpl = if include_params_generics {
+                parse_quote! {
+                    impl #generics_def #subject #generics_expr #where_clause {
+                        pub fn builder(#params_argument: #params #generics_expr) -> #builder #generics_expr {
+                            #builder {
+                                #builder_subject_field: #expr
+                            }
+                        }
+                    }
+                }
+            } else {
+                parse_quote! {
+                    impl #generics_def #subject #generics_expr #where_clause {
+                        pub fn builder(#params_argument: #params) -> #builder #generics_expr {
+                            #builder {
+                                #builder_subject_field: #expr
+                            }
                         }
                     }
                 }
@@ -143,7 +158,7 @@ mod tests {
             expected.to_token_stream().to_string()
         );
     }
-    
+
     #[test]
     fn test_with_unnamed_fields() {
         let item_struct = sample_unnamed_item_struct();

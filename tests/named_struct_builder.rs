@@ -34,10 +34,17 @@ fn test_structs_are_defined() {
 #[test]
 fn test_subject_from_params() {
     let params = PlatypusParams {
-        age: 0,
-        color: (0, 0, 0),
-        is_perry: ,
+        age: 2,
+        color: (1, 2, 3),
+        is_perry: false,
     };
+    
+    let subject: Platypus<&'static str> = params.into();
+
+    assert_eq!(subject.age, 2);
+    assert_eq!(subject.color, (1, 2, 3));
+    assert_eq!(subject.name, None);
+    assert_eq!(subject.is_perry, false);
 }
 
 #[test]

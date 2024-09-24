@@ -24,6 +24,7 @@ impl ToTokens for ParamsStruct {
         let BuilderContext {
             params,
             generics,
+            fields_metadata,
             ..
         } = &self.ctx;
         let GenericsContext {
@@ -32,22 +33,38 @@ impl ToTokens for ParamsStruct {
             ..
         } = &generics;
         
+        let include_generics = fields_metadata.generic_required_fields_count > 0;
+        
         match &self.fields {
             Fields::Named(_) => {
                 let punctuated_fields = self.punctuated_fields();
-                let item_struct: ItemStruct = parse_quote! {
-                    pub struct #params #generics_def #where_clause {
-                        #punctuated_fields
+                let item_struct: ItemStruct = if include_generics {
+                    parse_quote! {
+                        pub struct #params #generics_def #where_clause {
+                            #punctuated_fields
+                        }
+                    }
+                } else {
+                    parse_quote! {
+                        pub struct #params {
+                            #punctuated_fields
+                        }
                     }
                 };
-                
+
                 item_struct.to_tokens(tokens);
             },
             
             Fields::Unnamed(_) => {
                 let punctuated_fields = self.punctuated_fields();
-                let item_struct: ItemStruct = parse_quote! {
-                    pub struct #params #generics_def ( #punctuated_fields ) #where_clause;
+                let item_struct: ItemStruct = if include_generics {
+                    parse_quote! {
+                        pub struct #params #generics_def ( #punctuated_fields ) #where_clause;
+                    }
+                } else {
+                    parse_quote! {
+                        pub struct #params ( #punctuated_fields );
+                    }
                 };
 
                 item_struct.to_tokens(tokens);
