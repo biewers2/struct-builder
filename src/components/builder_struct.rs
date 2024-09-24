@@ -1,17 +1,19 @@
-use crate::struct_builder::BuilderContext;
+use crate::struct_builder::{BuilderContext, GenericsContext};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{parse_quote, ItemStruct};
+use syn::{parse_quote, Fields, ItemStruct};
 
 pub struct BuilderStruct {
-    idents: BuilderContext
+    ctx: BuilderContext,
+    unit: bool
 }
 
 impl From<&ItemStruct> for BuilderStruct {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderContext::from(value);
+        let ctx: BuilderContext = value.into();
+        let unit = matches!(value.fields, Fields::Unit);
 
-        Self { idents }
+        Self { ctx, unit }
     }
 }
 
@@ -21,41 +23,44 @@ impl ToTokens for BuilderStruct {
             subject,
             builder,
             builder_subject_field,
+            generics,
             ..
-        } = &self.idents;
+        } = &self.ctx;
+        let GenericsContext {
+            generics_def,
+            generics_expr,
+            where_clause,
+        } = &generics;
 
-        let builder_struct: ItemStruct = parse_quote! {
-            pub struct #builder {
-                #builder_subject_field: #subject
-            }
-        };
-        
-        builder_struct.to_tokens(tokens);
+        if !self.unit {
+            let builder_struct: ItemStruct = parse_quote! {
+                pub struct #builder #generics_def #where_clause {
+                    #builder_subject_field: #subject #generics_expr
+                }
+            };
+
+            builder_struct.to_tokens(tokens);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::components::BuilderStruct;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
+    use proc_macro::TokenStream;
     use quote::ToTokens;
     use syn::{parse_quote, ItemStruct};
-    use crate::components::BuilderStruct;
 
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemStruct = parse_quote! {
-            pub struct MyStructBuilder {
-                inner: MyStruct
+            pub struct MyStructBuilder<T, I: Send, W>
+            where
+                W: Sync
+            {
+                inner: MyStruct<T, I, W>
             }
         };
         
@@ -69,20 +74,13 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>
-            );
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemStruct = parse_quote! {
-            pub struct MyStructBuilder {
-                inner: MyStruct
+            pub struct MyStructBuilder<T, I: Send, W>
+            where
+                W: Sync
+            {
+                inner: MyStruct<T, I, W>
             }
         };
 
@@ -91,6 +89,18 @@ mod tests {
         assert_eq!(
             builder_struct.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
+        );
+    }
+    
+    #[test]
+    fn test_with_unit_struct() {
+        let item_struct = sample_unit_item_struct();
+
+        let builder_struct = BuilderStruct::from(&item_struct);
+
+        assert_eq!(
+            builder_struct.to_token_stream().to_string(),
+            TokenStream::new().to_string()
         );
     }
 }

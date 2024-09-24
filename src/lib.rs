@@ -9,22 +9,30 @@
 //! in the original struct that don't have the "Option" type. Once the builder is initialized with the params, both required and optional fields
 //! can be updated by calling builder methods (using the identifiers `with_<field>`).
 //!
+//! # Supported
+//!
+//! - [x] Generics (types, lifetime specifiers, const)
+//! - [ ] Attributes
+//! - [ ] ... (TBD)
+//!
 //! # Examples
 //!
-//! ## Using [StructBuilder] to build a request with named fields.
+//! ## Using [derive@StructBuilder] to build a request with named fields.
 //! ```
 //! use struct_builder::StructBuilder;
 //!
 //! #[derive(StructBuilder)]
-//! pub struct CreateUserRequest {
+//! pub struct CreateUserRequest<P> {
 //!     pub email: String,
 //!     pub first_name: Option<String>,
 //!     pub last_name: Option<String>,
-//!     pub age: Option<u64>
+//!     pub age: Option<u64>,
+//!     pub payload: P
 //! }
 //!
 //! let params = CreateUserRequestParams {
-//!     email: "john.doe@email.com".to_owned()
+//!     email: "john.doe@email.com".to_owned(),
+//!     payload: "John Doe's User".to_owned()
 //! };
 //! let request = CreateUserRequest::builder(params)
 //!     .with_first_name(Some("John".to_owned()))
@@ -37,7 +45,7 @@
 //! assert_eq!(request.age, Some(35));
 //! ```
 //!
-//! ## Using [StructBuilder] to build a tuple (unnamed) struct.
+//! ## Using [derive@StructBuilder] to build a tuple (unnamed) struct.
 //! ```
 //! use struct_builder::StructBuilder;
 //!

@@ -1,7 +1,8 @@
 use crate::components::{BuilderStruct, ImplBuilderFns, ImplFromBuilderForSubject, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
-use syn::{parse_quote, GenericParam, Generics, Ident, ItemStruct, TypeParam};
+use syn::punctuated::Punctuated;
+use syn::{parse_quote, ConstParam, GenericParam, Generics, Ident, ItemStruct, LifetimeParam, Token, TypeParam, WhereClause};
 
 const PARAMS_ARGUMENT_NAME: &str = "params";
 const BUILDER_SUBJECT_FIELD_NAME: &str = "inner";
@@ -26,9 +27,9 @@ pub struct FieldsMetadata {
 }
 
 pub struct GenericsContext {
-    generics_def: Generics,
-    generics_expr: Generics,
-    where_expr: Generics
+    pub generics_def: Generics,
+    pub generics_expr: Generics,
+    pub where_clause: Option<WhereClause>
 }
 
 impl From<&ItemStruct> for FieldsMetadata {
@@ -67,17 +68,27 @@ impl From<&Generics> for GenericsContext {
         generics_def.where_clause = None;
 
         let mut generics_expr = value.clone();
-        generics_expr.params.into_iter().map(|p| match p {
-            GenericParam::Lifetime(_) => todo!(),
-            GenericParam::Type(TypeParam { ident, .. }) => parse_quote! { #ident }),
-            GenericParam::Const(_) => panic!("not supported!")
-        })
-    }
-}
-
-impl BuilderContext {
-    pub fn are_params_generic(&self) -> bool {
-        self.fields_metadata.generic_required_fields_count > 0
+        generics_expr.params = generics_expr.params
+            .into_iter()
+            .map(|p| match p {
+                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
+                    GenericParam::Lifetime(parse_quote! { #lifetime }),
+                
+                GenericParam::Type(TypeParam { ident, .. }) =>
+                    GenericParam::Type(parse_quote! { #ident }),
+                
+                GenericParam::Const(ConstParam { ident, .. }) =>
+                    GenericParam::Const(parse_quote! { #ident })
+            })
+            .collect::<Punctuated<GenericParam, Token![,]>>();
+        
+        let where_clause = value.where_clause.clone();
+        
+        GenericsContext {
+            generics_def,
+            generics_expr,
+            where_clause
+        }
     }
 }
 

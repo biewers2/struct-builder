@@ -1,19 +1,19 @@
+use crate::struct_builder::{BuilderContext, GenericsContext};
 use proc_macro2::TokenStream;
-use crate::struct_builder::BuilderContext;
 use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Fields, ImplItemFn, Index, ItemImpl, ItemStruct};
 
 pub struct ImplBuilderFns {
-    idents: BuilderContext,
+    ctx: BuilderContext,
     fields: Fields
 }
 
 impl From<&ItemStruct> for ImplBuilderFns {
     fn from(value: &ItemStruct) -> Self {
-        let idents = BuilderContext::from(value);
+        let ctx: BuilderContext = value.into();
         let fields = value.fields.clone();
 
-        Self { idents, fields }
+        Self { ctx, fields }
     }
 }
 
@@ -23,8 +23,9 @@ impl ToTokens for ImplBuilderFns {
             subject,
             builder,
             builder_subject_field,
+            generics,
             ..
-        } = &self.idents;
+        } = &self.ctx;
 
         let optional_functions: Option<Vec<ImplItemFn>> = match &self.fields {
             Fields::Named(named_fields) => {
@@ -72,11 +73,17 @@ impl ToTokens for ImplBuilderFns {
         };
 
         if let Some(functions) = optional_functions {
+            let GenericsContext {
+                generics_def,
+                generics_expr,
+                where_clause
+            } = &generics;
+            
             let item_impl: ItemImpl = parse_quote! {
-                impl #builder {
+                impl #generics_def #builder #generics_expr #where_clause {
                     #(#functions)*
 
-                    pub fn build(self) -> #subject {
+                    pub fn build(self) -> #subject #generics_expr {
                         self.#builder_subject_field
                     }
                 }
@@ -89,26 +96,20 @@ impl ToTokens for ImplBuilderFns {
 
 #[cfg(test)]
 mod tests {
+    use crate::components::ImplBuilderFns;
+    use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
     use proc_macro::TokenStream;
     use quote::ToTokens;
-    use syn::{parse_quote, ItemImpl, ItemStruct};
-    use crate::components::ImplBuilderFns;
+    use syn::{parse_quote, ItemImpl};
 
     #[test]
     fn test_with_named_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>
-            }
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl MyStructBuilder {
+            impl<T, I: Send, W> MyStructBuilder<T, I, W>
+            where
+                W: Sync
+            {
                 pub fn with_public_field(mut self, value: String) -> Self {
                     self.inner.public_field = value;
                     self
@@ -144,7 +145,22 @@ mod tests {
                     self
                 }
                 
-                pub fn build(self) -> MyStruct {
+                pub fn with_generic(mut self, value: T) -> Self {
+                    self.inner.generic = value;
+                    self
+                }
+                
+                pub fn with_generic_inline(mut self, value: I) -> Self {
+                    self.inner.generic_inline = value;
+                    self
+                }
+                
+                pub fn with_generic_where(mut self, value: W) -> Self {
+                    self.inner.generic_where = value;
+                    self
+                }
+                
+                pub fn build(self) -> MyStruct<T, I, W> {
                     self.inner
                 }
             }
@@ -160,19 +176,12 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>
-            );
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl MyStructBuilder {
+            impl<T, I: Send, W> MyStructBuilder<T, I, W>
+            where
+                W: Sync
+            {
                 pub fn with_0(mut self, value: String) -> Self {
                     self.inner.0 = value;
                     self
@@ -208,7 +217,22 @@ mod tests {
                     self
                 }
                 
-                pub fn build(self) -> MyStruct {
+                pub fn with_7(mut self, value: T) -> Self {
+                    self.inner.7 = value;
+                    self
+                }
+                
+                pub fn with_8(mut self, value: I) -> Self {
+                    self.inner.8 = value;
+                    self
+                }
+                
+                pub fn with_9(mut self, value: W) -> Self {
+                    self.inner.9 = value;
+                    self
+                }
+                
+                pub fn build(self) -> MyStruct<T, I, W> {
                     self.inner
                 }
             }
@@ -224,7 +248,7 @@ mod tests {
     
     #[test]
     fn test_with_unit_struct() {
-        let item_struct = parse_quote! { pub struct MyStruct; };
+        let item_struct = sample_unit_item_struct();
 
         let impl_builder_fns = ImplBuilderFns::from(&item_struct);
 
