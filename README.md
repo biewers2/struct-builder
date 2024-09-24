@@ -1,6 +1,6 @@
 Derive builders for your structs.
 
-Put `#[derive(StructBuilder)]` on your structs to derive a builder pattern for that struct. The builder
+Put `#[builder]` on your structs to derive a builder pattern for that struct. The builder
 can be used to create the struct from only required fields (those without the `Option` type) and modify
 the content of the struct.
 
@@ -12,32 +12,33 @@ is initialized with the params, both required and optional fields can be updated
 
 # Examples
 
-## Using StructBuilder to build a request with named fields.
+Using `builder` to build a request with named fields.
 
 ```rust
-use struct_builder::StructBuilder;
+use struct_builder::builder;
 
-#[derive(StructBuilder)]
-pub struct CreateUserRequest {
+#[builder]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct CreateUserRequest<P> {
     pub email: String,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-    pub age: Option<u64>
+    pub age: Option<u64>,
+    pub payload: P
 }
 
 fn main() {
-    // New "params" struct that defines required fields for [CreateUserRequest].
-    let params = CreateUserRequestParams {
-        email: "john.doe@email.com".to_owned()
+    // Inherits attributes and generics from `CreateUserRequest`
+    let params: CreateUserRequestParams<String> = CreateUserRequestParams {
+        email: "john.doe@email.com".to_owned(),
+        payload: "John Doe's User".to_owned()
     };
-    
-    // Create a builder using the [builder] function by passing the params to it.
-    // All optional fields are set to [None] by default.
+
     let request = CreateUserRequest::builder(params)
         .with_first_name(Some("John".to_owned()))
         .with_age(Some(35))
         .build();
-
+    
     assert_eq!(request.email, "john.doe@email.com".to_owned());
     assert_eq!(request.first_name, Some("John".to_owned()));
     assert_eq!(request.last_name, None);

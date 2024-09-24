@@ -1,6 +1,6 @@
-use struct_builder::StructBuilder;
+use struct_builder::builder;
 
-#[derive(StructBuilder)]
+#[builder]
 pub struct Platypus<T>(
     pub u8,
     pub (u8, u8, u8),
