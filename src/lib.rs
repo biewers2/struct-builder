@@ -11,7 +11,7 @@
 //!
 //! # Examples
 //!
-//! ## Using [builder] to build a request with named fields.
+//! ## Using [macro@builder] to build a request with named fields.
 //! ```
 //! use struct_builder::builder;
 //!
@@ -42,7 +42,7 @@
 //! assert_eq!(request.age, Some(35));
 //! ```
 //!
-//! ## Using [builder] to build a tuple (unnamed) struct.
+//! ## Using [macro@builder] to build a tuple (unnamed) struct.
 //! ```
 //! use struct_builder::builder;
 //!
@@ -119,6 +119,13 @@ use crate::struct_builder::StructBuilder;
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct};
 
+/// Derive the builder pattern for a struct.
+///
+/// A struct builder enforces required fields to be specified and allows optional arguments to be specified post-construction.
+/// This is done by defining a "params" struct that the builder depends on to be initialized. This struct defines all the fields
+/// in the original struct that don't have the "Option" type. Once the builder is initialized with the params, both required and optional fields
+/// can be updated by calling builder methods (using the identifiers `with_<field>`).
+///
 #[proc_macro_attribute]
 pub fn builder(_attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_item = parse_macro_input!(item as ItemStruct);
@@ -131,7 +138,13 @@ pub fn builder(_attr: proc_macro::TokenStream, item: proc_macro::TokenStream) ->
 }
 
 
-#[deprecated(since = "0.3.0", note = "Please use `#[builder]` macro instead")]
+#[deprecated(
+    since = "0.3.0",
+    note = r#"
+        Please use `#[builder]` macro instead.
+        This macro type does not support inheriting existing attributes, such as other derived traits.
+    "#
+)]
 #[proc_macro_derive(StructBuilder)]
 pub fn derive_builder(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = parse_macro_input!(item as ItemStruct);

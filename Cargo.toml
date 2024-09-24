@@ -1,9 +1,9 @@
 [package]
 name = "struct-builder"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["biewers2"]
-description = "Derive builder structs for your structs"
+description = "Derive a builder for your structs"
 readme = "README.md"
 repository = "https://github.com/biewers2/struct-builder"
 license = "MIT"
