@@ -30,7 +30,6 @@ fn generic_params_contain_type(generic_params: &Punctuated<GenericParam, Token![
 }
 
 fn search_idents_contain_type(search_idents: &SearchIdents, ty: &Type) -> bool {
-    #![cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
     match ty {
         Type::Array(array) => search_idents_contain_type(&search_idents, &array.elem),
 

@@ -1,10 +1,9 @@
-use std::ops::Deref;
 use crate::components::{is_required, BuilderStruct, ImplBuilderFns, ImplFromBuilderForSubject, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
+use crate::generic_resolution::field_has_generic;
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::{parse_quote, Attribute, ConstParam, GenericParam, Generics, Ident, ItemStruct, LifetimeParam, Token, TypeParam, WhereClause};
-use crate::generic_resolution::field_has_generic;
 
 const PARAMS_ARGUMENT_NAME: &str = "params";
 const BUILDER_SUBJECT_FIELD_NAME: &str = "inner";
@@ -23,7 +22,7 @@ pub struct BuilderContext {
 }
 
 pub struct AttributesContext {
-    pub attrs: Vec<Attribute>
+    pub outer_attrs: Vec<Attribute>,
 }
 
 pub struct GenericsContext {
@@ -47,29 +46,33 @@ impl From<&ItemStruct> for BuilderContext {
             params_argument: format_ident!("{}", PARAMS_ARGUMENT_NAME),
             builder: format_ident!("{}Builder", &item.ident),
             builder_subject_field: format_ident!("{}", BUILDER_SUBJECT_FIELD_NAME),
-            attributes: AttributesContext::from(item.attrs.deref()),
-            generics: GenericsContext::from(&item.generics),
-            fields_metadata: FieldsMetadata::from(item)
+            attributes: item.into(),
+            generics: item.into(),
+            fields_metadata: item.into()
         }
     }
 }
 
-impl From<&[Attribute]> for AttributesContext {
-    fn from(value: &[Attribute]) -> Self {
-        Self {
-            attrs: value.to_owned()
-        }
+impl From<&ItemStruct> for AttributesContext {
+    fn from(item: &ItemStruct) -> Self {
+        let outer_attrs = item.attrs.to_owned();
+        Self { outer_attrs } 
     }
 }
 
-impl From<&Generics> for GenericsContext {
-    fn from(value: &Generics) -> Self {
-        let mut generics_def = value.clone();
+impl From<&ItemStruct> for GenericsContext {
+    fn from(item: &ItemStruct) -> Self {
+        let generics = &item.generics;
+
+        // Definitions of generic params, including bounds
+        let mut generics_def = generics.to_owned();
         generics_def.where_clause = None;
 
-        let mut generics_expr = value.clone();
+        // Expression of generic params, just the identifiers (no bounds)
+        let mut generics_expr = generics.to_owned();
         generics_expr.params = generics_expr.params
             .into_iter()
+            // Strip everything but the identifier from each param
             .map(|p| match p {
                 GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
                     GenericParam::Lifetime(parse_quote! { #lifetime }),
@@ -82,7 +85,8 @@ impl From<&Generics> for GenericsContext {
             })
             .collect::<Punctuated<GenericParam, Token![,]>>();
         
-        let where_clause = value.where_clause.clone();
+        // Separate where clause
+        let where_clause = generics.where_clause.to_owned();
         
         GenericsContext {
             generics_def,

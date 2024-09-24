@@ -25,6 +25,7 @@ impl ToTokens for ParamsStruct {
             params,
             generics,
             fields_metadata,
+            attributes,
             ..
         } = &self.ctx;
         let GenericsContext {
@@ -32,6 +33,7 @@ impl ToTokens for ParamsStruct {
             where_clause,
             ..
         } = &generics;
+        let attrs = &attributes.outer_attrs;
         
         let include_generics = fields_metadata.generic_required_fields_count > 0;
         
@@ -40,12 +42,14 @@ impl ToTokens for ParamsStruct {
                 let punctuated_fields = self.punctuated_fields();
                 let item_struct: ItemStruct = if include_generics {
                     parse_quote! {
+                        #(#attrs)*
                         pub struct #params #generics_def #where_clause {
                             #punctuated_fields
                         }
                     }
                 } else {
                     parse_quote! {
+                        #(#attrs)*
                         pub struct #params {
                             #punctuated_fields
                         }
@@ -59,10 +63,12 @@ impl ToTokens for ParamsStruct {
                 let punctuated_fields = self.punctuated_fields();
                 let item_struct: ItemStruct = if include_generics {
                     parse_quote! {
+                        #(#attrs)*
                         pub struct #params #generics_def ( #punctuated_fields ) #where_clause;
                     }
                 } else {
                     parse_quote! {
+                        #(#attrs)*
                         pub struct #params ( #punctuated_fields );
                     }
                 };
@@ -91,27 +97,13 @@ mod tests {
     use quote::ToTokens;
     use syn::{parse_quote, ItemStruct};
     use crate::components::params_struct::ParamsStruct;
+    use crate::test_util::{sample_named_item_struct, sample_unnamed_item_struct};
 
     #[test]
     fn test_with_named_fields() { 
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>
-            where
-                W: Sync
-            {
-                pub public_field: String,
-                private_field: String,
-                optional: Option<usize>,
-                pub test: std::option::Option<String>,
-                test2: option::Option<T>,
-                pub dynamic: Box<dyn Send>,
-                pub dynamic2: Box<Option<dyn Send>>,
-                pub generic: T,
-                pub generic_inline: Option<I>,
-                pub generic_where: W
-            }   
-        };
+        let item_struct = sample_named_item_struct();
         let expected: ItemStruct = parse_quote! {
+            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
             pub struct MyStructParams<T, I: Send, W>
             where
                 W: Sync
@@ -120,7 +112,9 @@ mod tests {
                 private_field: String,
                 pub dynamic: Box<dyn Send>,
                 pub dynamic2: Box<Option<dyn Send>>,
+                #[serde(rename = "simpleGeneric")]
                 pub generic: T,
+                pub generic_inline: I,
                 pub generic_where: W
             }
         };
@@ -135,29 +129,16 @@ mod tests {
     
     #[test]
     fn test_with_unnamed_fields() {
-        let item_struct: ItemStruct = parse_quote! {
-            pub struct MyStruct<T, I: Send, W>(
-                pub String,
-                String,
-                Option<usize>,
-                pub std::option::Option<String>,
-                option::Option<T>,
-                pub Box<dyn Send>,
-                pub Box<Option<dyn Send>>,
-                pub T,
-                pub Option<I>,
-                pub W
-            )
-            where
-                W: Sync;
-        };
+        let item_struct = sample_unnamed_item_struct();
         let expected: ItemStruct = parse_quote! {
             pub struct MyStructParams<T, I: Send, W>(
                 pub String,
                 String,
                 pub Box<dyn Send>,
                 pub Box<Option<dyn Send>>,
+                #[inline_required]
                 pub T,
+                pub I,
                 pub W
             )
             where
