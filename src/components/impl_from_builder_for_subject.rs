@@ -3,12 +3,12 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{parse_quote, Fields, ItemImpl, ItemStruct};
 
-pub struct ImplFromParamsForSubject {
+pub struct ImplFromBuilderForSubject {
     ctx: BuilderContext,
     unit: bool
 }
 
-impl From<&ItemStruct> for ImplFromParamsForSubject {
+impl From<&ItemStruct> for ImplFromBuilderForSubject {
     fn from(value: &ItemStruct) -> Self {
         let ctx: BuilderContext = value.into();
         let unit = matches!(&value.fields, Fields::Unit);
@@ -17,13 +17,13 @@ impl From<&ItemStruct> for ImplFromParamsForSubject {
     }
 }
 
-impl ToTokens for ImplFromParamsForSubject {
+impl ToTokens for ImplFromBuilderForSubject {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let BuilderContext {
             subject,
-            params,
+            builder,
+            builder_subject_field,
             generics,
-            fields_metadata,
             ..
         } = &self.ctx;
         let GenericsContext {
@@ -31,26 +31,14 @@ impl ToTokens for ImplFromParamsForSubject {
             generics_expr,
             where_clause
         } = &generics;
-        
-        let include_params_generics = fields_metadata.generic_required_fields_count > 0;
 
         if !self.unit {
-            let item_impl: ItemImpl = if include_params_generics {
-                parse_quote! {
-                    impl #generics_def From<#params #generics_expr> for #subject #generics_expr #where_clause {
-                        fn from(value: #params #generics_expr) -> Self {
-                            Self::builder(value).build()
-                        }
+            let item_impl: ItemImpl = parse_quote! {
+                impl #generics_def From<#builder #generics_expr> for #subject #generics_expr #where_clause {
+                    fn from(value: #builder #generics_expr) -> Self {
+                        value.#builder_subject_field
                     }
                 }
-            } else {
-                parse_quote! {
-                    impl #generics_def From<#params> for #subject #generics_expr #where_clause {
-                        fn from(value: #params) -> Self {
-                            Self::builder(value).build()
-                        }
-                    }
-                }               
             };
 
             item_impl.to_tokens(tokens);
@@ -60,7 +48,7 @@ impl ToTokens for ImplFromParamsForSubject {
 
 #[cfg(test)]
 mod tests {
-    use crate::components::ImplFromParamsForSubject;
+    use crate::components::{ImplFromParamsForSubject, ImplFromBuilderForSubject};
     use crate::test_util::{sample_named_item_struct, sample_unit_item_struct, sample_unnamed_item_struct};
     use proc_macro2::TokenStream;
     use quote::ToTokens;
@@ -70,46 +58,46 @@ mod tests {
     fn test_with_named_fields() {
         let item_struct = sample_named_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl<T, I: Send, W> From<MyStructParams<T, I, W>> for MyStruct<T, I, W>
+            impl<T, I: Send, W> From<MyStructBuilder<T, I, W>> for MyStruct<T, I, W>
             where
                 W: Sync
             {
-                fn from(value: MyStructParams<T, I, W>) -> Self {
-                    Self::builder(value).build()
+                fn from(value: MyStructBuilder<T, I, W>) -> Self {
+                    value.inner
                 }
             }
         };
-        
-        let impl_from_params_for_subject = ImplFromParamsForSubject::from(&item_struct);
+
+        let impl_from_builder_for_subject = ImplFromBuilderForSubject::from(&item_struct);
 
         assert_eq!(
-            impl_from_params_for_subject.to_token_stream().to_string(),
+            impl_from_builder_for_subject.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
         );
     }
-    
+
     #[test]
     fn test_with_unnamed_fields() {
         let item_struct = sample_unnamed_item_struct();
         let expected: ItemImpl = parse_quote! {
-            impl<T, I: Send, W> From<MyStructParams<T, I, W>> for MyStruct<T, I, W>
+            impl<T, I: Send, W> From<MyStructBuilder<T, I, W>> for MyStruct<T, I, W>
             where
                 W: Sync
             {
-                fn from(value: MyStructParams<T, I, W>) -> Self {
-                    Self::builder(value).build()
+                fn from(value: MyStructBuilder<T, I, W>) -> Self {
+                    value.inner
                 }
             }
         };
 
-        let impl_from_params_for_subject = ImplFromParamsForSubject::from(&item_struct);
+        let impl_from_builder_for_subject = ImplFromBuilderForSubject::from(&item_struct);
 
         assert_eq!(
-            impl_from_params_for_subject.to_token_stream().to_string(),
+            impl_from_builder_for_subject.to_token_stream().to_string(),
             expected.to_token_stream().to_string()
         );
     }
-    
+
     #[test]
     fn test_with_unit_struct() {
         let item_struct = sample_unit_item_struct();

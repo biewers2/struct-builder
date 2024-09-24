@@ -1,8 +1,9 @@
+use crate::components::{is_required, BuilderStruct, ImplBuilderFns, ImplFromBuilderForSubject, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
-use syn::{parse_quote, ConstParam, GenericParam, Generics, Ident, ItemStruct, LifetimeParam, Token, TypeParam, WhereClause};
 use syn::punctuated::Punctuated;
-use crate::components::{BuilderStruct, ImplBuilderFns, ImplFromParamsForSubject, ImplFromSubjectForBuilder, ImplSubjectFnBuilder, ParamsStruct};
+use syn::{parse_quote, ConstParam, GenericParam, Generics, Ident, ItemStruct, LifetimeParam, Token, TypeParam, WhereClause};
+use crate::generic_resolution::field_has_generic;
 
 const PARAMS_ARGUMENT_NAME: &str = "params";
 const BUILDER_SUBJECT_FIELD_NAME: &str = "inner";
@@ -15,7 +16,15 @@ pub struct BuilderContext {
     pub params_argument: Ident,
     pub builder: Ident,
     pub builder_subject_field: Ident,
-    pub generics: GenericsContext
+    pub generics: GenericsContext,
+    pub fields_metadata: FieldsMetadata
+}
+
+pub struct FieldsMetadata {
+    pub required_fields_count: usize,
+    pub optional_fields_count: usize,
+    pub generic_required_fields_count: usize,
+    pub generic_optional_fields_count: usize
 }
 
 pub struct GenericsContext {
@@ -32,8 +41,37 @@ impl From<&ItemStruct> for BuilderContext {
             params_argument: format_ident!("{}", PARAMS_ARGUMENT_NAME),
             builder: format_ident!("{}Builder", &item.ident),
             builder_subject_field: format_ident!("{}", BUILDER_SUBJECT_FIELD_NAME),
-            generics: GenericsContext::from(&item.generics)
+            generics: GenericsContext::from(&item.generics),
+            fields_metadata: FieldsMetadata::from(item)
         }
+    }
+}
+
+impl From<&ItemStruct> for FieldsMetadata {
+    fn from(value: &ItemStruct) -> Self {
+        let mut meta = Self {
+            required_fields_count: 0,
+            optional_fields_count: 0,
+            generic_required_fields_count: 0,
+            generic_optional_fields_count: 0,
+        };
+
+        for field in &value.fields {
+            let generic = field_has_generic(&value.generics, &field);
+            let required = is_required(&field);
+            
+            if generic && required {
+                meta.generic_required_fields_count += 1;
+            } else if generic && !required {
+                meta.generic_optional_fields_count += 1;
+            } else if !generic && required {
+                meta.required_fields_count += 1;
+            } else {
+                meta.optional_fields_count += 1;
+            }
+        }
+
+        meta
     }
 }
 
@@ -76,6 +114,7 @@ impl ToTokens for StructBuilder {
             Box::new(ParamsStruct::from(item)),
             Box::new(BuilderStruct::from(item)),
             Box::new(ImplBuilderFns::from(item)),
+            Box::new(ImplFromBuilderForSubject::from(item)),
             Box::new(ImplFromParamsForSubject::from(item)),
             Box::new(ImplFromSubjectForBuilder::from(item)),
         ];
